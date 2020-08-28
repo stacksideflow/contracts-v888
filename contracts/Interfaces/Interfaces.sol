@@ -17,8 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pragma solidity 0.6.8;
+pragma solidity 0.6.12;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router01.sol";
@@ -51,6 +52,23 @@ interface IETHLiquidityPool is ILiquidityPool {
     function sendPremium() external payable;
 }
 
+
+interface IHegicStaking {
+    function claimProfit() external returns (uint profit);
+    function buy(uint amount) external;
+    function sell(uint amount) external;
+    function profitOf(address account) external view returns (uint);
+}
+
+
+interface IHegicStakingETH is IHegicStaking {
+    function sendProfit() external payable;
+}
+
+
+interface IHegicStakingERC20 is IHegicStaking {
+    function sendProfit(uint amount) external;
+}
 
 // For the future integrations of non-standard ERC20 tokens such as USDT and others
 // interface ERC20Incorrect {

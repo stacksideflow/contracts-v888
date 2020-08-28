@@ -1,4 +1,4 @@
-const {getContracts, toWei, timeTravel, MAX_INTEGER} = require("./utils/utils.js")
+const {getContracts, toWei, timeTravel, MAX_INTEGER} = require("../utils/utils.js")
 const BN = web3.utils.BN
 
 // const firstProvide  = new BN( '1000000000000000000' )
@@ -13,108 +13,115 @@ const thirdProvide = new BN(toWei(Math.random()))
 const firstWithdraw = firstProvide
 const profit = new BN(toWei(Math.random())).div(new BN(1000))
 
-contract("HegicETHPool", ([user1, user2, user3]) => {
+module.exports.test = () => contract("HegicERCPool", ([user1, user2, user3]) => {
   const contracts = getContracts()
 
   it("Should mint tokens for the first provider correctly", async () => {
-    const {ETHPool} = await contracts
-    await ETHPool.provide(0, {value: firstProvide, from: user1})
-    assert(
-      await ETHPool.shareOf(user1).then((x) => x.eq(firstProvide)),
-      "Wrong amount"
+    const {WBTCPool, WBTC} = await contracts
+    await WBTC.mint(firstProvide, {from: user1})
+    await WBTC.approve(WBTCPool.address, firstProvide, {from: user1})
+    await WBTCPool.provide(firstProvide, 0, {from: user1})
+    assert.equal(
+        firstProvide.toString(),
+        await WBTCPool.shareOf(user1).then(x => x.toString()),
+        "Wrong amount"
     )
   })
 
   it("Should mint tokens for the second provider correctly", async () => {
-    const {ETHPool} = await contracts
-    await ETHPool.provide(0, {value: secondProvide, from: user2})
-    assert(
-      await ETHPool.shareOf(user2).then((x) => x.eq(secondProvide)),
-      "Wrong amount"
-    )
+    const {WBTCPool, WBTC} = await contracts
+    await WBTC.mint(secondProvide, {from: user2})
+    await WBTC.approve(WBTCPool.address, secondProvide, {from: user2})
+    await WBTCPool.provide(secondProvide, 0, {from: user2})
+    assert(secondProvide.eq(await WBTCPool.shareOf(user2)), "Wrong amount")
   })
 
   it("Should distribute the profits correctly", async () => {
-    const {ETHPool} = await contracts
-    const value = profit
+    const {WBTCPool, WBTC} = await contracts
+
     const [startShare1, startShare2] = await Promise.all([
-      ETHPool.shareOf(user1),
-      ETHPool.shareOf(user2),
+      WBTCPool.shareOf(user1),
+      WBTCPool.shareOf(user2),
     ])
 
-    const expected1 = value
+    const expected1 = profit
       .mul(startShare1)
       .div(startShare1.add(startShare2))
       .add(startShare1)
-    const expected2 = value
+    const expected2 = profit
       .mul(startShare2)
       .div(startShare1.add(startShare2))
       .add(startShare2)
 
-    await ETHPool.sendTransaction({value, from: user3})
+    await WBTC.mint(profit, {from: user3})
+    await WBTC.transfer(WBTCPool.address, profit, {from: user3})
+
     const [res1, res2] = await Promise.all([
-      ETHPool.shareOf(user1).then((x) => x.eq(expected1)),
-      ETHPool.shareOf(user2).then((x) => x.eq(expected2)),
+      WBTCPool.shareOf(user1).then((x) => x.eq(expected1)),
+      WBTCPool.shareOf(user2).then((x) => x.eq(expected2)),
     ])
     assert(res1 && res2, "The profits value isn't correct")
   })
 
   it("Should mint tokens for the third provider correctly", async () => {
-    const {ETHPool} = await contracts
+    const {WBTCPool, WBTC} = await contracts
     const value = thirdProvide
     const [startShare1, startShare2] = await Promise.all([
-      ETHPool.shareOf(user1),
-      ETHPool.shareOf(user2),
+      WBTCPool.shareOf(user1),
+      WBTCPool.shareOf(user2),
     ])
-    await ETHPool.provide(0, {value, from: user3})
+
+    await WBTC.mint(thirdProvide, {from: user3})
+    await WBTC.approve(WBTCPool.address, thirdProvide, {from: user3})
+    await WBTCPool.provide(thirdProvide, 0, {from: user3})
+
     assert.isAtLeast(
-      await ETHPool.shareOf(user3).then((x) => x.sub(value).toNumber()),
+      await WBTCPool.shareOf(user3).then((x) => x.sub(value).toNumber()),
       -1,
       "The third provider has lost funds"
     )
     assert(
-      await ETHPool.shareOf(user1).then((x) => x.eq(startShare1)),
+      await WBTCPool.shareOf(user1).then((x) => x.eq(startShare1)),
       "The first provider has an incorrect share"
     )
     assert(
-      await ETHPool.shareOf(user2).then((x) => x.eq(startShare2)),
+      await WBTCPool.shareOf(user2).then((x) => x.eq(startShare2)),
       "The second provider has an incorrect share"
     )
   })
 
   it("Should burn the first provider's tokens correctly", async () => {
-    const {ETHPool} = await contracts
+    const {WBTCPool, WBTC} = await contracts
     const value = firstWithdraw
-    const startBalance = await web3.eth.getBalance(user1).then((x) => new BN(x))
+    const startBalance = await WBTC.balanceOf(user1)
 
     const [startShare1, startShare2, startShare3] = await Promise.all([
-      ETHPool.shareOf(user1),
-      ETHPool.shareOf(user2),
-      ETHPool.shareOf(user3),
+      WBTCPool.shareOf(user1),
+      WBTCPool.shareOf(user2),
+      WBTCPool.shareOf(user3),
     ])
 
     await timeTravel(14 * 24 * 3600 + 1)
+    // await WBTCPool.lockupPeriod().then(timeTravel)
     const gasPrice = await web3.eth.getGasPrice().then((x) => new BN(x))
-    const transactionFee = await ETHPool.withdraw(value, MAX_INTEGER)
-      .then((x) => new BN(x.receipt.gasUsed))
-      .then((x) => x.mul(gasPrice))
-    const endBalance = await web3.eth.getBalance(user1).then((x) => new BN(x))
-    const balanceDelta = endBalance.add(transactionFee).sub(startBalance)
+    const logs = await WBTCPool.withdraw(value, MAX_INTEGER)
+    const endBalance = await WBTC.balanceOf(user1)
+    const balanceDelta = endBalance.sub(startBalance)
 
     const [share1, share2, share3] = await Promise.all([
-      ETHPool.shareOf(user1),
-      ETHPool.shareOf(user2),
-      ETHPool.shareOf(user3),
+      WBTCPool.shareOf(user1),
+      WBTCPool.shareOf(user2),
+      WBTCPool.shareOf(user3),
     ])
     assert.isAtLeast(
       share2.sub(startShare2).toNumber(),
       -1,
-      "The second user has lost funds"
+      "The second provider has lost funds"
     )
     assert.isAtLeast(
       share3.sub(startShare3).toNumber(),
       -1,
-      "The third user has lost funds"
+      "The third provider has lost funds"
     )
     assert(
       balanceDelta.eq(value),

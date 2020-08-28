@@ -1,21 +1,22 @@
-const {getContracts, timeTravel, toWei, OptionType} = require("./utils/utils.js")
-const {testCallPrices} = require("./Prices.js")
+const {getContracts, timeTravel, toWei, OptionType} = require("../utils/utils.js")
+const {testPutPrices} = require("./Prices.js")
 const BN = web3.utils.BN
-const priceTestPoints = [0, 50, 75, 95, 100, 105, 125, 150, 200]
+const priceTestPoints = [ 50, 75, 95, 100, 105, 125, 150, 1000]
 
-contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
+module.exports.test = () => contract("HegicETHOptions(put)", ([user1, user2, user3, user4]) => {
   const contracts = getContracts()
   const pricesBuf = []
-  async function createOption({period, amount, strike, user} = {}) {
-    const {ETHOptions, PriceProvider} = await contracts
-    const price =  await PriceProvider.latestAnswer()
+
+  async function createOption(params = {}) {
+    const {period, amount, strike, user} = params
+    const {ETHOptions, ETHPool, PriceProvider} = await contracts
     const [_period, _amount, _strike, from] = [
       new BN(24 * 3600 * (period || 1)),
       new BN(amount || toWei(0.1)),
-      new BN(strike || (price)),
+      new BN(strike || (await PriceProvider.latestAnswer())),
       user || user1,
     ]
-    const _type = OptionType.Call
+    const _type = OptionType.Put
     const [value, settlementFee] = await ETHOptions.fees(
       _period,
       _amount,
@@ -23,11 +24,11 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
       _type
     ).then((x) => [x.total, x.settlementFee])
     const createEvent = await ETHOptions.create(_period, _amount, _strike, _type, {
-      value,
-      from,
-    })
-      .then((x) => x.logs.find((x) => x.event == "Create"))
-      .then((x) => (x ? x.args : null))
+            value,
+            from,
+        })
+        .then((x) => x.logs.find((x) => x.event == "Create"))
+        .then((x) => (x ? x.args : null))
     assert.isNotNull(createEvent, "'Create' event has not been initialized")
     assert.equal(createEvent.account, from, "Wrong account")
     assert(value.eq(createEvent.totalFee), "Wrong premium value")
@@ -59,40 +60,48 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
 
     let result
 
-    if (exercisePrice.lt(strike)) {
+    if (exercisePrice.gt(strike)) {
       await ETHOptions.exercise(id).then(
-        () => assert.fail("Exercising a call option should be canceled"),
+        () => assert.fail("Exercising a put option should be canceled"),
         (x) => {
           assert.equal(
             x.reason,
-            "Current price is too low",
+            "Current price is too high",
             "Wrong error reason"
           )
           result = "rejected"
         }
       )
     } else {
-      const expectedProfit = amount
-        .mul(exercisePrice.sub(strike))
+      const locked = new BN(await ETHOptions.options(id).then(x => x.lockedAmount));
+      const countedProfit = amount
+        .mul(strike.sub(exercisePrice))
         .div(exercisePrice)
+      const expectedProfit = countedProfit.gt(locked) ? locked : countedProfit
       const startBalance = await web3.eth.getBalance(user1)
       const {profit} = await ETHOptions.exercise(id).then(
         (x) => x.logs.find((x) => x.event == "Exercise").args
       )
       const endBalance = await web3.eth.getBalance(user1)
-      assert(amount.gt(expectedProfit), "too large expected profit")
+      assert(
+        amount.mul(strike).div(new BN(1e8)).gte(expectedProfit),
+        "too large expected profit"
+      )
       assert.equal(
         profit.toString(),
         expectedProfit.toString(),
-        "wrong profit amount"
+        "wrong profit amount (1)"
       )
       // assert.equal(
-      //     endBalance.sub(startBalance).toString(),
-      //     expectedProfit.toString(),
-      //     "wrong profit amount",
+      //   endBalance.sub(startBalance).toString(),
+      //   expectedProfit.toString(),
+      //   "wrong profit amount (2)"
       // )
       result = profit / 1e18
     }
+
+    const usdFee = totalFee.mul(createPrice) / 1e26
+
     pricesBuf.push({
       period,
       amount: amount / 1e18,
@@ -100,14 +109,15 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
       strike: strike / 1e8,
       exercisePrice: exercisePrice / 1e8,
       totalFee: totalFee / 1e18,
+      usdFee,
       profit: result,
-      profitSF: result - totalFee / 1e18,
+      profitSF: typeof result == "number" ? result - totalFee : result,
     })
 
     await PriceProvider.setPrice(backupPrice)
   }
 
-  testCallPrices(contracts)
+  if(false) testPutPrices(contracts)
 
   it("Should be owned by the first account", async () => {
     const {ETHOptions} = await contracts
@@ -127,11 +137,12 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
     )
   })
 
-  it("Should provide funds to the pool", async () => {
-    const {ETHPool} = await contracts
-    const value = toWei(50)
-    await ETHPool.provide(0, {value, from: user4})
-  })
+
+it("Should provide funds to the pool", async () => {
+  const {ETHPool} = await contracts
+  const value = toWei(50)
+  await ETHPool.provide(0, {value, from: user4})
+})
 
   it("Should create an option", async () => {
     const createEvent = await createOption()
@@ -162,7 +173,7 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
     const {ETHOptions} = await contracts
     const {id} = await createOption()
     await ETHOptions.exercise(id, {from: user2}).then(
-      () => assert.fail("Exercising a call option should be canceled"),
+      () => assert.fail("Exercising a put option should be canceled"),
       (x) => {
         assert.equal(x.reason, "Wrong msg.sender", "Wrong error reason")
       }
@@ -175,7 +186,7 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
     const {id} = await createOption({period})
     const test = () =>
       ETHOptions.unlock(id).then(
-        () => assert.fail("Exercising a call option should be canceled"),
+        () => assert.fail("Exercising a put option should be canceled"),
         (x) => {
           assert.equal(
             x.reason,
@@ -195,7 +206,7 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
     const {id} = await createOption({period, user: user2})
     await timeTravel(period * 24 * 3600 + 1)
     await ETHOptions.exercise(id, {from: user2}).then(
-      () => assert.fail("Exercising a call option should be canceled"),
+      () => assert.fail("Exercising a put option should be canceled"),
       (x) => {
         assert.equal(x.reason, "Option has expired", "Wrong error reason")
       }
@@ -208,7 +219,7 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
     await ETHOptions.exercise(id, {from: user2})
     await timeTravel(24 * 3600 + 1)
     await ETHOptions.unlock(id).then(
-      () => assert.fail("Exercising a call option should be canceled"),
+      () => assert.fail("Exercising a put option should be canceled"),
       (x) => {
         assert.equal(x.reason, "Option is not active", "Wrong error reason")
       }
@@ -238,31 +249,28 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
     }
   })
 
-  it("Should lock amount correctly", async () => {
+  it("Should lock funds correctly", async () => {
     const {ETHPool, ETHOptions} = await contracts
     const startLockedAmount = await ETHPool.lockedAmount()
-    const amount = Math.random().toFixed(18)
-    const {id} = await createOption({amount: toWei(amount)})
-    const optionCollateralizationRatio =
-        new BN(await ETHOptions.optionCollateralizationRatio())
+    const amount = new BN(toWei(Math.random().toFixed(18)))
+    // const strike = new BN(200e8)
+    const {id} = await createOption({amount})
     const endLockedAmount = await ETHPool.lockedAmount()
+    // TODO: expected
     const expected = new BN(await ETHOptions.options(id).then(x=>x.lockedAmount))
     const actual = endLockedAmount.sub(startLockedAmount)
-    assert.equal(
-      expected.toString(),
-      actual.toString(),
-      "was locked incorrect amount"
-    )
+    assert(expected.eq(actual), "was locked incorrect amount")
   })
 
-  it("should unlock funds after an option is exercised", async () => {
+  it("Should unlock funds after an option is exercised", async () => {
     const {ETHOptions, ETHPool} = await contracts
-    const amount = Math.random().toFixed(18)
-    const strike = new BN(200e8)
-    const {id} = await createOption({amount: toWei(amount), strike})
+    const amount = new BN(toWei(Math.random().toFixed(18)))
+    // const strike = new BN(200e8)
+    const {id} = await createOption({amount})
     const startLockedAmount = await ETHPool.lockedAmount()
     await ETHOptions.exercise(id)
     const endLockedAmount = await ETHPool.lockedAmount()
+    // TODO: expected
     const expected = new BN(await ETHOptions.options(id).then(x=>x.lockedAmount))
     const actual = startLockedAmount.sub(endLockedAmount)
     assert.equal(
@@ -275,9 +283,9 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
   it("Shouldn't change pool's total amount when creates an option", async () => {
     const {ETHPool} = await contracts
     const startTotalBalance = await ETHPool.totalBalance()
-    const amount = Math.random().toFixed(18)
+    const amount = new BN(toWei(Math.random().toFixed(18)))
     const strike = new BN(200e8)
-    const {id} = await createOption({amount: toWei(amount), strike})
+    const {id} = await createOption({amount, strike})
     const endTotalBalance = await ETHPool.totalBalance()
 
     assert(
@@ -291,9 +299,9 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
     const startShares = await Promise.all(
       [user1, user2, user3].map((user) => ETHPool.shareOf(user))
     ).then((x) => x.toString())
-    const amount = Math.random().toFixed(18)
+    const amount = new BN(toWei(Math.random().toFixed(18)))
     const strike = new BN(200e8)
-    const {id} = await createOption({amount: toWei(amount), strike})
+    const {id} = await createOption({amount, strike})
     const endTotalBalance = await ETHPool.totalBalance()
     const endShares = await Promise.all(
       [user1, user2, user3].map((user) => ETHPool.shareOf(user))
@@ -304,10 +312,10 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
   it("Should unfreeze LP's profit correctly after an option is unlocked", async () => {
     const {ETHPool, ETHOptions} = await contracts
     const startTotalBalance = await ETHPool.totalBalance()
-    const amount = Math.random().toFixed(18)
+    const amount = new BN(toWei(Math.random().toFixed(18)))
     const strike = new BN(200e8)
-    const {id} = await createOption({amount: toWei(amount), strike})
-    // const {premium} = awanew Bit ETHOptions.options(id)
+    const {id} = await createOption({amount, strike})
+    // const {premium} = await ETHOptions.options(id)
     timeTravel(24 * 3600 + 1)
     const {premium} = await ETHOptions.unlock(id)
       .then((x) => x.logs.find((x) => x.event == "Expire"))
@@ -327,10 +335,10 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
   })
 
   for (const testPoint of priceTestPoints)
-    it(`Should pay profit for exercised ITM (90%) option correctly (price: ${testPoint}%)`, () =>
+    it(`Should pay profit for exercised ITM (110%) option correctly (price: ${testPoint}%)`, () =>
       testOption({
         createPrice: new BN(200e8),
-        strike: new BN(200e8).mul(new BN(9)).div(new BN(10)),
+        strike: new BN(200e8).mul(new BN(11)).div(new BN(10)),
         exercisePrice: new BN(200e8).mul(new BN(testPoint)).div(new BN(100)),
       }))
 
@@ -342,18 +350,18 @@ contract("HegicETHOptions(call)", ([user1, user2, user3, user4]) => {
       }))
 
   for (const testPoint of priceTestPoints)
-    it(`Should pay profit for exercised OTM (110%) option correctly (price: ${testPoint}%)`, () =>
+    it(`Should pay profit for exercised OTM (90%) option correctly (price: ${testPoint}%)`, () =>
       testOption({
         createPrice: new BN(200e8),
-        strike: new BN(200e8).mul(new BN(11)).div(new BN(10)),
+        strike: new BN(200e8).mul(new BN(9)).div(new BN(10)),
         exercisePrice: new BN(200e8).mul(new BN(testPoint)).div(new BN(100)),
       }))
 
-  it("Shouldn't pay profit for exercised option when price is reduced", () =>
+  it("Shouldn't pay profit for exercised option when price is increased", () =>
     testOption({
-      createPrice: new BN(200e8),
-      exercisePrice: new BN(200e8 - 1),
-    }))
+    createPrice: new BN(200e8),
+    exercisePrice: new BN(200e8 + 1),
+  }))
 
   for (const testPoint of [190, 195, 200, 205, 210])
     it(`Show price for $${testPoint} strike`, () =>

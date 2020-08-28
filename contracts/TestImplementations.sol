@@ -16,8 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-pragma solidity 0.6.8;
-import "../contracts/Interfaces.sol";
+pragma solidity 0.6.12;
+import "./Interfaces/Interfaces.sol";
 
 
 contract FakeExchange {
@@ -98,6 +98,17 @@ contract FakeWBTC is ERC20("FakeWBTC", "FAKE") {
         _setupDecimals(8);
     }
 
+    function mintTo(address account, uint256 amount) public {
+        _mint(account, amount);
+    }
+
+    function mint(uint256 amount) public {
+        _mint(msg.sender, amount);
+    }
+}
+
+
+contract FakeHEGIC is ERC20("FakeHEGIC", "FAKEH") {
     function mintTo(address account, uint256 amount) public {
         _mint(account, amount);
     }

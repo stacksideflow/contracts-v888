@@ -1,4 +1,4 @@
-const {getContracts, toWei, OptionType} = require("./utils/utils.js")
+const {getContracts, toWei, OptionType} = require("../utils/utils.js")
 const BN = web3.utils.BN
 
 const pricePoints = [60, 70, 80, 90, 100, 110, 120, 130, 140]

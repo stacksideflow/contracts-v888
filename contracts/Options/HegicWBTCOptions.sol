@@ -17,26 +17,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pragma solidity 0.6.8;
-import "./HegicPool_ETH.sol";
+pragma solidity 0.6.12;
+import "../Pool/HegicWBTCPool.sol";
 
 
 /**
  * @author 0mllwntrmt3
- * @title Hegic ETH (Ether) Bidirectional (Call and Put) Options
- * @notice Hegic ETH Options Contract
+ * @title Hegic WBTC (Wrapped Bitcoin) Bidirectional (Call and Put) Options
+ * @notice Hegic Protocol Options Contract
  */
-contract HegicETHOptions is Ownable {
+contract HegicWBTCOptions is Ownable {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
 
-    address payable public settlementFeeRecipient;
+    IHegicStakingERC20 public settlementFeeRecipient;
     Option[] public options;
     uint256 public impliedVolRate;
     uint256 public optionCollateralizationRatio = 50;
     uint256 internal constant PRICE_DECIMALS = 1e8;
     uint256 internal contractCreationTimestamp;
     AggregatorV3Interface public priceProvider;
-    HegicETHPool public pool;
+    HegicERCPool public pool;
+    IUniswapV2Router01 public uniswapRouter;
+    address[] public ethToWbtcSwapPath;
+    IERC20 wbtc;
 
     event Create(
         uint256 indexed id,
@@ -62,14 +66,29 @@ contract HegicETHOptions is Ownable {
     }
 
     /**
-     * @param pp The address of ChainLink ETH/USD price feed contract
+     * @param _priceProvider The address of ChainLink BTC/USD price feed contract
+     * @param _uniswap The address of Uniswap router contract
+     * @param token The address of WBTC ERC20 token contract
      */
-    constructor(AggregatorV3Interface pp) public {
-        pool = new HegicETHPool();
-        priceProvider = pp;
-        settlementFeeRecipient = payable(owner());
+    constructor(
+        AggregatorV3Interface _priceProvider,
+        IUniswapV2Router01 _uniswap,
+        ERC20 token,
+        IHegicStakingERC20 _settlementFeeRecipient
+    ) public {
+        pool = new HegicERCPool(token);
+        wbtc = token;
+        priceProvider = _priceProvider;
+        settlementFeeRecipient = _settlementFeeRecipient;
         impliedVolRate = 5500;
-        contractCreationTimestamp = now;
+        uniswapRouter = _uniswap;
+        contractCreationTimestamp = block.timestamp;
+        approve();
+
+        ethToWbtcSwapPath = new address[](2);
+        ethToWbtcSwapPath[0] = uniswapRouter.WETH();
+        ethToWbtcSwapPath[1] = address(wbtc);
+
     }
 
     /**
@@ -77,7 +96,7 @@ contract HegicETHOptions is Ownable {
      *         in the first 14 days after deployment
      */
     function transferPoolOwnership() external onlyOwner {
-        require(now < contractCreationTimestamp + 14 days);
+        require(block.timestamp < contractCreationTimestamp + 14 days);
         pool.transferOwnership(owner());
     }
 
@@ -94,9 +113,9 @@ contract HegicETHOptions is Ownable {
      * @notice Used for changing settlementFeeRecipient
      * @param recipient New settlementFee recipient address
      */
-    function setSettlementFeeRecipient(address payable recipient) external onlyOwner {
-        require(now < contractCreationTimestamp + 14 days);
-        require(recipient != address(0));
+    function setSettlementFeeRecipient(IHegicStakingERC20 recipient) external onlyOwner {
+        require(block.timestamp < contractCreationTimestamp + 14 days);
+        require(address(recipient) != address(0));
         settlementFeeRecipient = recipient;
     }
 
@@ -108,6 +127,7 @@ contract HegicETHOptions is Ownable {
         require(50 <= value && value <= 100, "wrong value");
         optionCollateralizationRatio = value;
     }
+
 
     /**
      * @notice Creates a new option
@@ -127,35 +147,56 @@ contract HegicETHOptions is Ownable {
         payable
         returns (uint256 optionID)
     {
-        (uint256 total, uint256 settlementFee, uint256 strikeFee, ) = fees(
-            period,
-            amount,
-            strike,
-            optionType
-        );
+        (uint256 total, uint256 totalETH, uint256 settlementFee, uint256 strikeFee, ) =
+            fees(period, amount, strike, optionType);
+
         require(period >= 1 days, "Period is too short");
         require(period <= 4 weeks, "Period is too long");
-        require(amount > strikeFee, "Price difference is too large");
-        require(msg.value == total, "Wrong value");
+        require(amount > strikeFee, "price difference is too large");
+        require(msg.value >= totalETH, "value is too small");
 
         uint256 strikeAmount = amount.sub(strikeFee);
+        uint premium = total.sub(settlementFee);
         optionID = options.length;
+
         Option memory option = Option(
             State.Active,
             msg.sender,
             strike,
             amount,
             strikeAmount.mul(optionCollateralizationRatio).div(100).add(strikeFee),
-            total.sub(settlementFee),
-            now + period,
+            premium,
+            block.timestamp + period,
             optionType
         );
 
+        uint amountIn = swapToWBTC(msg.value, total);
+        if (amountIn < msg.value) {
+            msg.sender.transfer(msg.value.sub(amountIn));
+        }
+
         options.push(option);
-        settlementFeeRecipient.transfer(settlementFee);
+        settlementFeeRecipient.sendProfit(settlementFee);
+        pool.sendPremium(option.premium);
         pool.lock(option.lockedAmount);
-        pool.sendPremium {value: option.premium}();
+
         emit Create(optionID, msg.sender, settlementFee, total);
+    }
+
+    /**
+     * @notice Transfers an active option
+     * @param optionID ID of your option
+     * @param newHolder Address of new option holder
+     */
+    function transfer(uint256 optionID, address payable newHolder) external {
+        Option storage option = options[optionID];
+
+        require(newHolder != address(0), "new holder address is zero");
+        require(option.expiration >= block.timestamp, "Option has expired");
+        require(option.holder == msg.sender, "Wrong msg.sender");
+        require(option.state == State.Active, "Only active option could be transferred");
+
+        option.holder = newHolder;
     }
 
     /**
@@ -165,7 +206,7 @@ contract HegicETHOptions is Ownable {
     function exercise(uint256 optionID) external {
         Option storage option = options[optionID];
 
-        require(option.expiration >= now, "Option has expired");
+        require(option.expiration >= block.timestamp, "Option has expired");
         require(option.holder == msg.sender, "Wrong msg.sender");
         require(option.state == State.Active, "Wrong state");
 
@@ -187,11 +228,20 @@ contract HegicETHOptions is Ownable {
     }
 
     /**
+     * @notice Allows the ERC pool contract to receive and send tokens
+     */
+    function approve() public {
+        wbtc.safeApprove(address(pool), uint(-1));
+        wbtc.safeApprove(address(settlementFeeRecipient), uint(-1));
+    }
+
+    /**
      * @notice Used for getting the actual options prices
      * @param period Option period in seconds (1 days <= period <= 4 weeks)
      * @param amount Option amount
      * @param strike Strike price of the option
      * @return total Total price to be paid
+     * @return totalETH Total price in ETH to be paid
      * @return settlementFee Amount to be distributed to the HEGIC token holders
      * @return strikeFee Amount that covers the price difference in the ITM options
      * @return periodFee Option period fee amount
@@ -206,17 +256,19 @@ contract HegicETHOptions is Ownable {
         view
         returns (
             uint256 total,
+            uint256 totalETH,
             uint256 settlementFee,
             uint256 strikeFee,
             uint256 periodFee
         )
     {
-        (,int latestPrice,,,) = priceProvider.latestRoundData();
+        (, int latestPrice, , , ) = priceProvider.latestRoundData();
         uint256 currentPrice = uint256(latestPrice);
         settlementFee = getSettlementFee(amount);
         periodFee = getPeriodFee(amount, period, strike, currentPrice, optionType);
         strikeFee = getStrikeFee(amount, strike, currentPrice, optionType);
         total = periodFee.add(strikeFee).add(settlementFee);
+        totalETH = uniswapRouter.getAmountsIn(total, ethToWbtcSwapPath)[0];
     }
 
     /**
@@ -225,7 +277,7 @@ contract HegicETHOptions is Ownable {
      */
     function unlock(uint256 optionID) public {
         Option storage option = options[optionID];
-        require(option.expiration < now, "Option has not expired yet");
+        require(option.expiration < block.timestamp, "Option has not expired yet");
         require(option.state == State.Active, "Option is not active");
         option.state = State.Expired;
         unlockFunds(option);
@@ -250,7 +302,7 @@ contract HegicETHOptions is Ownable {
      * @param amount Option amount
      * @param period Option period in seconds (1 days <= period <= 4 weeks)
      * @param strike Strike price of the option
-     * @param currentPrice Current price of ETH
+     * @param currentPrice Current price of BTC
      * @return fee Period fee amount
      *
      * amount < 1e30        |
@@ -287,7 +339,7 @@ contract HegicETHOptions is Ownable {
      * @notice Calculates strikeFee
      * @param amount Option amount
      * @param strike Strike price of the option
-     * @param currentPrice Current price of ETH
+     * @param currentPrice Current price of BTC
      * @return fee Strike fee amount
      */
     function getStrikeFee(
@@ -304,7 +356,7 @@ contract HegicETHOptions is Ownable {
     }
 
     /**
-     * @notice Sends profits in ETH from the ETH pool to an option holder's address
+     * @notice Sends profits in WBTC from the WBTC pool to an option holder's address
      * @param option A specific option contract
      */
     function payProfit(Option memory option)
@@ -327,6 +379,29 @@ contract HegicETHOptions is Ownable {
     }
 
     /**
+     * @notice Swap ETH to WBTC via Uniswap router
+     * @param maxAmountIn The maximum amount of ETH that can be required before the transaction reverts.
+     * @param amountOut The amount of WBTC tokens to receive.
+     */
+    function swapToWBTC(
+        uint maxAmountIn,
+        uint amountOut
+    )
+        internal
+        returns (uint)
+    {
+            uint[] memory amounts = uniswapRouter.swapETHForExactTokens {
+                value: maxAmountIn
+            }(
+                amountOut,
+                ethToWbtcSwapPath,
+                address(this),
+                block.timestamp
+            );
+            return amounts[0];
+    }
+
+    /**
      * @notice Unlocks the amount that was locked in an option contract
      * @param option A specific option contract
      */
@@ -334,7 +409,6 @@ contract HegicETHOptions is Ownable {
         pool.unlockPremium(option.premium);
         pool.unlock(option.lockedAmount);
     }
-
 
     /**
      * @return result Square root of the number

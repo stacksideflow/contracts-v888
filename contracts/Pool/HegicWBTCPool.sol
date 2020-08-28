@@ -17,8 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pragma solidity 0.6.8;
-import "./Interfaces.sol";
+pragma solidity 0.6.12;
+import "../Interfaces/Interfaces.sol";
 
 
 /**
@@ -36,7 +36,8 @@ contract HegicERCPool is
     uint256 public lockupPeriod = 2 weeks;
     uint256 public lockedAmount;
     uint256 public lockedPremium;
-    mapping(address => uint256) private lastProvideTimestamp;
+    mapping(address => uint256) public lastProvideTimestamp;
+    mapping(address => bool) public _revertTransfersInLockUpPeriod;
     IERC20 public override token;
 
     /*
@@ -121,7 +122,7 @@ contract HegicERCPool is
      * @return mint Amount of tokens to be received
      */
     function provide(uint256 amount, uint256 minMint) external returns (uint256 mint) {
-        lastProvideTimestamp[msg.sender] = now;
+        lastProvideTimestamp[msg.sender] = block.timestamp;
         uint supply = totalSupply();
         uint balance = totalBalance();
         if (supply > 0 && balance > 0)
@@ -148,7 +149,7 @@ contract HegicERCPool is
      */
     function withdraw(uint256 amount, uint256 maxBurn) external returns (uint256 burn) {
         require(
-            lastProvideTimestamp[msg.sender].add(lockupPeriod) <= now,
+            lastProvideTimestamp[msg.sender].add(lockupPeriod) <= block.timestamp,
             "Pool: Withdrawal is locked up"
         );
         require(
@@ -195,10 +196,16 @@ contract HegicERCPool is
         return token.balanceOf(address(this)).sub(lockedPremium);
     }
 
-    function _beforeTokenTransfer(address from, address, uint256) internal override {
-        require(
-            lastProvideTimestamp[from].add(lockupPeriod) <= now,
-            "Pool: Withdrawal is locked up"
-        );
+    function _beforeTokenTransfer(address from, address to, uint256) internal override {
+        if (
+            lastProvideTimestamp[from].add(lockupPeriod) > block.timestamp &&
+            lastProvideTimestamp[from] > lastProvideTimestamp[to]
+        ) {
+            require(
+                !_revertTransfersInLockUpPeriod[to],
+                "the recipient does not accept blocked funds"
+            );
+            lastProvideTimestamp[to] = lastProvideTimestamp[from];
+        }
     }
 }

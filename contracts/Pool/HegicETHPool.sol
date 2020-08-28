@@ -17,8 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pragma solidity 0.6.8;
-import "./Interfaces.sol";
+pragma solidity 0.6.12;
+import "../Interfaces/Interfaces.sol";
 
 
 /**
@@ -36,12 +36,8 @@ contract HegicETHPool is
     uint256 public lockupPeriod = 2 weeks;
     uint256 public lockedAmount;
     uint256 public lockedPremium;
-    mapping(address => uint256) private lastProvideTimestamp;
-
-    /*
-     * @nonce Sends premiums to the liquidity pool
-     **/
-    receive() external payable {}
+    mapping(address => uint256) public lastProvideTimestamp;
+    mapping(address => bool) public _revertTransfersInLockUpPeriod;
 
     /**
      * @notice Used for changing the lockup period
@@ -52,6 +48,13 @@ contract HegicETHPool is
         lockupPeriod = value;
     }
 
+    /**
+     * @notice Used for ...
+     */
+    function revertTransfersInLockUpPeriod(bool value) external {
+        _revertTransfersInLockUpPeriod[msg.sender] = value;
+    }
+
     /*
      * @nonce A provider supplies ETH to the pool and receives writeETH tokens
      * @param minMint Minimum amount of tokens that should be received by a provider.
@@ -60,7 +63,7 @@ contract HegicETHPool is
      * @return mint Amount of tokens to be received
      */
     function provide(uint256 minMint) external payable returns (uint256 mint) {
-        lastProvideTimestamp[msg.sender] = now;
+        lastProvideTimestamp[msg.sender] = block.timestamp;
         uint supply = totalSupply();
         uint balance = totalBalance();
         if (supply > 0 && balance > 0)
@@ -82,7 +85,7 @@ contract HegicETHPool is
      */
     function withdraw(uint256 amount, uint256 maxBurn) external returns (uint256 burn) {
         require(
-            lastProvideTimestamp[msg.sender].add(lockupPeriod) <= now,
+            lastProvideTimestamp[msg.sender].add(lockupPeriod) <= block.timestamp,
             "Pool: Withdrawal is locked up"
         );
         require(
@@ -113,7 +116,7 @@ contract HegicETHPool is
     }
 
     /*
-     * @nonce calls by HegicCallOptions to unlock the funds
+     * @nonce calls by HegicOptions to unlock the funds
      * @param amount Amount of funds that should be unlocked in an expired option
      */
     function unlock(uint256 amount) external override onlyOwner {
@@ -122,7 +125,7 @@ contract HegicETHPool is
     }
 
     /*
-     * @nonce calls by HegicPutOptions to lock the premiums
+     * @nonce calls by HegicOptions to lock the premiums
      * @param amount Amount of premiums that should be locked
      */
     function sendPremium() external override payable onlyOwner {
@@ -181,10 +184,16 @@ contract HegicETHPool is
         return address(this).balance.sub(lockedPremium);
     }
 
-    function _beforeTokenTransfer(address from, address, uint256) internal override {
-        require(
-            lastProvideTimestamp[from].add(lockupPeriod) <= now,
-            "Pool: Withdrawal is locked up"
-        );
+    function _beforeTokenTransfer(address from, address to, uint256) internal override {
+        if (
+            lastProvideTimestamp[from].add(lockupPeriod) > block.timestamp &&
+            lastProvideTimestamp[from] > lastProvideTimestamp[to]
+        ) {
+            require(
+                !_revertTransfersInLockUpPeriod[to],
+                "the recipient does not accept blocked funds"
+            );
+            lastProvideTimestamp[to] = lastProvideTimestamp[from];
+        }
     }
 }
