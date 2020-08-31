@@ -1,3 +1,5 @@
+pragma solidity 0.6.12;
+
 /**
  * SPDX-License-Identifier: GPL-3.0-or-later
  * Hegic
@@ -17,7 +19,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pragma solidity 0.6.12;
 import "../Pool/HegicETHPool.sol";
 
 
@@ -26,40 +27,17 @@ import "../Pool/HegicETHPool.sol";
  * @title Hegic ETH (Ether) Bidirectional (Call and Put) Options
  * @notice Hegic ETH Options Contract
  */
-contract HegicETHOptions is Ownable {
+contract HegicETHOptions is Ownable, IHegicOptions {
     using SafeMath for uint256;
 
     IHegicStakingETH public settlementFeeRecipient;
-    Option[] public options;
+    Option[] public override options;
     uint256 public impliedVolRate;
     uint256 public optionCollateralizationRatio = 50;
     uint256 internal constant PRICE_DECIMALS = 1e8;
     uint256 internal contractCreationTimestamp;
     AggregatorV3Interface public priceProvider;
     HegicETHPool public pool;
-
-    event Create(
-        uint256 indexed id,
-        address indexed account,
-        uint256 settlementFee,
-        uint256 totalFee
-    );
-
-    event Exercise(uint256 indexed id, uint256 profit);
-    event Expire(uint256 indexed id, uint256 premium);
-    enum State {Active, Exercised, Expired}
-    enum OptionType {Put, Call}
-
-    struct Option {
-        State state;
-        address payable holder;
-        uint256 strike;
-        uint256 amount;
-        uint256 lockedAmount;
-        uint256 premium;
-        uint256 expiration;
-        OptionType optionType;
-    }
 
     /**
      * @param pp The address of ChainLink ETH/USD price feed contract
@@ -153,8 +131,7 @@ contract HegicETHOptions is Ownable {
 
         options.push(option);
         settlementFeeRecipient.sendProfit {value: settlementFee}();
-        pool.lock(option.lockedAmount);
-        pool.sendPremium {value: option.premium}();
+        pool.lock {value: option.premium} (optionID, option.lockedAmount);
         emit Create(optionID, msg.sender, settlementFee, total);
     }
 
@@ -165,7 +142,7 @@ contract HegicETHOptions is Ownable {
      */
     function transfer(uint256 optionID, address payable newHolder) external {
         Option storage option = options[optionID];
-        
+
         require(newHolder != address(0), "new holder address is zero");
         require(option.expiration >= block.timestamp, "Option has expired");
         require(option.holder == msg.sender, "Wrong msg.sender");
@@ -186,7 +163,7 @@ contract HegicETHOptions is Ownable {
         require(option.state == State.Active, "Wrong state");
 
         option.state = State.Exercised;
-        uint256 profit = payProfit(option);
+        uint256 profit = payProfit(optionID);
 
         emit Exercise(optionID, profit);
     }
@@ -244,7 +221,7 @@ contract HegicETHOptions is Ownable {
         require(option.expiration < block.timestamp, "Option has not expired yet");
         require(option.state == State.Active, "Option is not active");
         option.state = State.Expired;
-        unlockFunds(option);
+        pool.unlock(optionID);
         emit Expire(optionID, option.premium);
     }
 
@@ -321,12 +298,13 @@ contract HegicETHOptions is Ownable {
 
     /**
      * @notice Sends profits in ETH from the ETH pool to an option holder's address
-     * @param option A specific option contract
+     * @param optionID A specific option contract id
      */
-    function payProfit(Option memory option)
+    function payProfit(uint optionID)
         internal
         returns (uint profit)
     {
+        Option memory option = options[optionID];
         (, int latestPrice, , , ) = priceProvider.latestRoundData();
         uint256 currentPrice = uint256(latestPrice);
         if (option.optionType == OptionType.Call) {
@@ -338,18 +316,9 @@ contract HegicETHOptions is Ownable {
         }
         if (profit > option.lockedAmount)
             profit = option.lockedAmount;
-        pool.send(option.holder, profit);
-        unlockFunds(option);
+        pool.send(optionID, option.holder, profit);
     }
 
-    /**
-     * @notice Unlocks the amount that was locked in an option contract
-     * @param option A specific option contract
-     */
-    function unlockFunds(Option memory option) internal {
-        pool.unlockPremium(option.premium);
-        pool.unlock(option.lockedAmount);
-    }
 
 
     /**

@@ -10,6 +10,7 @@
     "start": "DEVMOD=true truffle console",
     "ganache": "ganache-cli -e 10000000",
     "test": "truffle test",
+    "coverage": "truffle run coverage",
     "lint": "prettier './**/*.js' './**/*.sol' './**/*.md' --write",
     "flat": "truffle-flattener test/Import.flat > build/flat.sol"
   },
@@ -24,7 +25,8 @@
     "mocha": "^7.2.0",
     "prettier": "^2.0.5",
     "prettier-plugin-solidity": "^1.0.0-alpha.55",
-    "truffle": "^5.1.36",
+    "solidity-coverage": "^0.7.10",
+    "truffle": "^5.1.42",
     "truffle-flattener": "^1.4.4"
   },
   "dependencies": {

@@ -10,7 +10,7 @@ module.exports = {
         `Should have a price for ${pricePoints[i]}% strike ` +
           `greater than the price for ${pricePoints[i + 1]}% strike`,
         async () => {
-          const {ETHOptions, PriceProvider} = await contracts
+          const [ETHOptions, PriceProvider] = await contracts
           const amount = new BN(toWei(Math.random() * 10))
           // Random period from 1 to 56 days
           const period = new BN(24 * 3600 * parseInt(1 + Math.random() * 55))
@@ -35,7 +35,7 @@ module.exports = {
         `Should have a price for ${pricePoints[i]}% strike ` +
           `lower than the price for ${pricePoints[i + 1]}% strike`,
         async () => {
-          const {ETHOptions, PriceProvider} = await contracts
+          const [ETHOptions, PriceProvider] = await contracts
           const amount = new BN(toWei(Math.random() * 10))
           // Random period from 1 to 56 days
           const period = new BN(24 * 3600 * parseInt(1 + Math.random() * 55))

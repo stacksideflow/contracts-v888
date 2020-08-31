@@ -32,11 +32,16 @@ contract HegicStaking is ERC20, IHegicStaking {
     uint public constant MAX_SUPPLY = 1500;
     uint public constant LOT_PRICE = 888_000e18;
     uint internal constant ACCURACY = 1e30;
-    address payable public immutable FALLBACK_RECEPIENT;
+    address payable public immutable FALLBACK_RECIPIENT;
 
     uint public totalProfit = 0;
     mapping(address => uint) internal lastProfit;
     mapping(address => uint) internal savedProfit;
+
+
+    uint256 public lockupPeriod = 1 days;
+    mapping(address => uint256) public lastBoughtTimestamp;
+    mapping(address => bool) public _revertTransfersInLockUpPeriod;
 
     event Claim(address indexed acount, uint amount);
     event Profit(uint amount);
@@ -47,7 +52,7 @@ contract HegicStaking is ERC20, IHegicStaking {
     {
         HEGIC = _token;
         _setupDecimals(0);
-        FALLBACK_RECEPIENT = msg.sender;
+        FALLBACK_RECIPIENT = msg.sender;
     }
 
     function claimProfit() external override returns (uint profit) {
@@ -65,9 +70,16 @@ contract HegicStaking is ERC20, IHegicStaking {
         HEGIC.safeTransferFrom(msg.sender, address(this), amount.mul(LOT_PRICE));
     }
 
-    function sell(uint amount) external override {
+    function sell(uint amount) external override lockupFree {
         _burn(msg.sender, amount);
         HEGIC.safeTransfer(msg.sender, amount.mul(LOT_PRICE));
+    }
+
+    /**
+     * @notice Used for ...
+     */
+    function revertTransfersInLockUpPeriod(bool value) external {
+        _revertTransfersInLockUpPeriod[msg.sender] = value;
     }
 
     function profitOf(address account) external view override returns (uint) {
@@ -88,7 +100,25 @@ contract HegicStaking is ERC20, IHegicStaking {
     function _beforeTokenTransfer(address from, address to, uint256) internal override {
         if (from != address(0)) saveProfit(from);
         if (to != address(0)) saveProfit(to);
+        if (
+            lastBoughtTimestamp[from].add(lockupPeriod) > block.timestamp &&
+            lastBoughtTimestamp[from] > lastBoughtTimestamp[to]
+        ) {
+            require(
+                !_revertTransfersInLockUpPeriod[to],
+                "the recipient does not accept blocked funds"
+            );
+            lastBoughtTimestamp[to] = lastBoughtTimestamp[from];
+        }
     }
 
     function _transferProfit(uint amount) internal virtual;
+
+    modifier lockupFree {
+        require(
+            lastBoughtTimestamp[msg.sender].add(lockupPeriod) <= block.timestamp,
+            "Action suspended due to lockup"
+        );
+        _;
+    }
 }

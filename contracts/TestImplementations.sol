@@ -1,3 +1,5 @@
+pragma solidity 0.6.12;
+
 /**
  * SPDX-License-Identifier: GPL-3.0-or-later
  * Hegic
@@ -16,7 +18,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-pragma solidity 0.6.12;
 import "./Interfaces/Interfaces.sol";
 
 
@@ -36,7 +37,7 @@ contract FakeExchange {
         returns (uint[] memory amounts)
     {
         uint amountIn = getAmountsIn(amountOut, path)[0];
-        require(msg.value > amountIn, "Fake Uniswap: value is too small");
+        require(msg.value >= amountIn, "Fake Uniswap: value is too small");
         amounts = new uint[](1);
         amounts[0] = msg.value;
 
@@ -90,6 +91,11 @@ contract FakePriceProvider is AggregatorV3Interface {
     {
         answer = int(price);
     }
+}
+
+
+contract FakeBTCPriceProvider is FakePriceProvider {
+    constructor(uint price) public FakePriceProvider(price) {}
 }
 
 

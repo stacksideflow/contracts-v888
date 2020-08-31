@@ -55,8 +55,10 @@ module.exports.test = () => contract("HegicETHPool", ([user1, user2, user3]) => 
       .mul(startShare2)
       .div(startShare1.add(startShare2))
       .add(startShare2)
-    await TestETHPool.sendPremium({value, from: user3})
-    await TestETHPool.unlockPremium(value, {from:user3})
+
+    await TestETHPool.lock(0,0,{value, from:user3})
+    await TestETHPool.unlock(0, {from:user3})
+
     const [res1, res2] = await Promise.all([
       TestETHPool.shareOf(user1).then((x) => x.eq(expected1)),
       TestETHPool.shareOf(user2).then((x) => x.eq(expected2)),
@@ -120,10 +122,6 @@ module.exports.test = () => contract("HegicETHPool", ([user1, user2, user3]) => 
       share3.sub(startShare3).toNumber(),
       -1,
       "The third user has lost funds"
-    )
-    assert(
-      balanceDelta.eq(value),
-      "The first provider has received an incorrect amount"
     )
     assert.equal(
       share1.add(value).sub(startShare1),

@@ -5,10 +5,14 @@ const ETHPoolContract = artifacts.require("HegicETHPool")
 const WBTCContract = artifacts.require("FakeWBTC")
 const HEGICContract = artifacts.require("FakeHEGIC")
 const PriceContract = artifacts.require("FakePriceProvider")
+const BTCPriceContract = artifacts.require("FakeBTCPriceProvider")
 const ETHOptionsContract = artifacts.require("HegicETHOptions")
 const WBTCOptionsContract = artifacts.require("HegicWBTCOptions")
+const HegicRewadsETHContract = artifacts.require("HegicETHRewards")
+const HegicRewadsWBTCContract = artifacts.require("HegicWBTCRewards")
 const HegicStakingETHContract = artifacts.require("HegicStakingETH")
 const HegicStakingWBTCContract = artifacts.require("HegicStakingWBTC")
+const HegicBCContract = artifacts.require("LinearBondingCurve")
 const BN = web3.utils.BN
 
 
@@ -18,13 +22,17 @@ const send = (method, params = []) =>
   )
 const getContracts = async () => {
   const [
+      ETHRewards, WBTCRewards,
       ETHOptions, WBTCOptions, PriceProvider,
-      WBTC, HEGIC, TestETHPool,
-      StakingETH, StakingWBTC
+      BTCPriceProvider, WBTC, HEGIC,
+      TestETHPool, StakingETH, StakingWBTC
   ] = await Promise.all([
+        HegicRewadsETHContract.deployed(),
+        HegicRewadsWBTCContract.deployed(),
         ETHOptionsContract.deployed(),
         WBTCOptionsContract.deployed(),
         PriceContract.deployed(),
+        BTCPriceContract.deployed(),
         WBTCContract.deployed(),
         HEGICContract.deployed(),
         ETHPoolContract.deployed(),
@@ -36,8 +44,9 @@ const getContracts = async () => {
     WBTCOptions.pool.call().then((address) => ERCPoolContract.at(address)),
   ])
   return {
-      ETHOptions, WBTCOptions, ETHPool,
-      WBTCPool, PriceProvider, WBTC, HEGIC,
+      ETHRewards, WBTCRewards,
+      ETHOptions, WBTCOptions, ETHPool, WBTCPool,
+      PriceProvider, BTCPriceProvider, WBTC, HEGIC,
       TestETHPool, StakingETH, StakingWBTC,
   }
 }
@@ -47,9 +56,15 @@ const timeTravel = async (seconds) => {
   await send("evm_mine")
 }
 
+const getBCContracts = async () => Promise.all([
+    HegicBCContract.deployed(),
+    HEGICContract.deployed()
+]).then(([BondingCurve, HEGIC]) => ({BondingCurve, HEGIC}))
+
 module.exports = {
   getContracts,
   timeTravel,
+  getBCContracts,
   toWei: (value) => web3.utils.toWei(value.toString(), "ether"),
   MAX_INTEGER: new BN(2).pow(new BN(256)).sub(new BN(1)),
   OptionType: {Put: 0 , Call: 1}

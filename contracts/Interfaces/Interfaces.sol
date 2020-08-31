@@ -1,3 +1,5 @@
+pragma solidity 0.6.12;
+
 /**
  * SPDX-License-Identifier: GPL-3.0-or-later
  * Hegic
@@ -17,7 +19,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pragma solidity 0.6.12;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -26,30 +27,29 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router01.sol";
 
 
 interface ILiquidityPool {
-    event Withdraw(
-        address indexed account,
-        uint256 amount,
-        uint256 writeAmount
-    );
+    struct LockedLiquidity { uint amount; uint premium; bool locked; }
 
+    event Profit(uint indexed id, uint amount);
+    event Loss(uint indexed id, uint amount);
     event Provide(address indexed account, uint256 amount, uint256 writeAmount);
-    function lock(uint256 amount) external;
-    function unlock(uint256 amount) external;
-    function unlockPremium(uint256 amount) external;
-    function send(address payable account, uint256 amount) external;
+    event Withdraw(address indexed account, uint256 amount, uint256 writeAmount);
+
+    function unlock(uint256 id) external;
+    function send(uint256 id, address payable account, uint256 amount) external;
     function setLockupPeriod(uint value) external;
     function totalBalance() external view returns (uint256 amount);
+    // function unlockPremium(uint256 amount) external;
 }
 
 
 interface IERCLiquidityPool is ILiquidityPool {
-    function sendPremium(uint256 amount) external;
+    function lock(uint id, uint256 amount, uint premium) external;
     function token() external view returns (IERC20);
 }
 
 
 interface IETHLiquidityPool is ILiquidityPool {
-    function sendPremium() external payable;
+    function lock(uint id, uint256 amount) external payable;
 }
 
 
@@ -68,6 +68,43 @@ interface IHegicStakingETH is IHegicStaking {
 
 interface IHegicStakingERC20 is IHegicStaking {
     function sendProfit(uint amount) external;
+}
+
+
+interface IHegicOptions {
+    event Create(
+        uint256 indexed id,
+        address indexed account,
+        uint256 settlementFee,
+        uint256 totalFee
+    );
+
+    event Exercise(uint256 indexed id, uint256 profit);
+    event Expire(uint256 indexed id, uint256 premium);
+    enum State {Active, Exercised, Expired}
+    enum OptionType {Put, Call}
+
+    struct Option {
+        State state;
+        address payable holder;
+        uint256 strike;
+        uint256 amount;
+        uint256 lockedAmount;
+        uint256 premium;
+        uint256 expiration;
+        OptionType optionType;
+    }
+
+    function options(uint) external view returns (
+        State state,
+        address payable holder,
+        uint256 strike,
+        uint256 amount,
+        uint256 lockedAmount,
+        uint256 premium,
+        uint256 expiration,
+        OptionType optionType
+    );
 }
 
 // For the future integrations of non-standard ERC20 tokens such as USDT and others

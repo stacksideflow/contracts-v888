@@ -1,3 +1,5 @@
+pragma solidity 0.6.12;
+
 /**
  * SPDX-License-Identifier: GPL-3.0-or-later
  * Hegic
@@ -17,27 +19,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import "./HegicStaking.sol";
-pragma solidity 0.6.12;
+import "./HegicRewards.sol";
 
 
-contract HegicStakingETH is HegicStaking, IHegicStakingETH {
-    using SafeMath for uint;
-
-    constructor(ERC20 _token) public
-        HegicStaking(_token, "HEGIC ETH Staking lot", "hlETH") {}
-
-    function sendProfit() external payable override {
-        uint _totalSupply = totalSupply();
-        if (_totalSupply > 0) {
-            totalProfit += msg.value.mul(ACCURACY) / _totalSupply;
-            emit Profit(msg.value);
-        } else {
-            FALLBACK_RECIPIENT.transfer(msg.value);
-        }
-    }
-
-    function _transferProfit(uint amount) internal override {
-        msg.sender.transfer(amount);
-    }
+contract HegicWBTCRewards is HegicRewards {
+    constructor(
+        IHegicOptions _hegicOptions,
+        IERC20 _hegic
+    ) public HegicRewards(
+        _hegicOptions,
+        _hegic,
+        1_000_000e18,
+        10e18
+    ) {}
 }

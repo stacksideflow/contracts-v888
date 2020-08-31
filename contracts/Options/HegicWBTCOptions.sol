@@ -1,3 +1,5 @@
+pragma solidity 0.6.12;
+
 /**
  * SPDX-License-Identifier: GPL-3.0-or-later
  * Hegic
@@ -17,7 +19,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pragma solidity 0.6.12;
 import "../Pool/HegicWBTCPool.sol";
 
 
@@ -26,12 +27,12 @@ import "../Pool/HegicWBTCPool.sol";
  * @title Hegic WBTC (Wrapped Bitcoin) Bidirectional (Call and Put) Options
  * @notice Hegic Protocol Options Contract
  */
-contract HegicWBTCOptions is Ownable {
+contract HegicWBTCOptions is Ownable, IHegicOptions {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     IHegicStakingERC20 public settlementFeeRecipient;
-    Option[] public options;
+    Option[] public override options;
     uint256 public impliedVolRate;
     uint256 public optionCollateralizationRatio = 50;
     uint256 internal constant PRICE_DECIMALS = 1e8;
@@ -41,29 +42,6 @@ contract HegicWBTCOptions is Ownable {
     IUniswapV2Router01 public uniswapRouter;
     address[] public ethToWbtcSwapPath;
     IERC20 wbtc;
-
-    event Create(
-        uint256 indexed id,
-        address indexed account,
-        uint256 settlementFee,
-        uint256 totalFee
-    );
-
-    event Exercise(uint256 indexed id, uint256 profit);
-    event Expire(uint256 indexed id, uint256 premium);
-    enum State {Active, Exercised, Expired}
-    enum OptionType {Put, Call}
-
-    struct Option {
-        State state;
-        address payable holder;
-        uint256 strike;
-        uint256 amount;
-        uint256 lockedAmount;
-        uint256 premium;
-        uint256 expiration;
-        OptionType optionType;
-    }
 
     /**
      * @param _priceProvider The address of ChainLink BTC/USD price feed contract
@@ -177,8 +155,7 @@ contract HegicWBTCOptions is Ownable {
 
         options.push(option);
         settlementFeeRecipient.sendProfit(settlementFee);
-        pool.sendPremium(option.premium);
-        pool.lock(option.lockedAmount);
+        pool.lock(optionID, option.lockedAmount, option.premium);
 
         emit Create(optionID, msg.sender, settlementFee, total);
     }
@@ -211,7 +188,7 @@ contract HegicWBTCOptions is Ownable {
         require(option.state == State.Active, "Wrong state");
 
         option.state = State.Exercised;
-        uint256 profit = payProfit(option);
+        uint256 profit = payProfit(optionID);
 
         emit Exercise(optionID, profit);
     }
@@ -280,7 +257,7 @@ contract HegicWBTCOptions is Ownable {
         require(option.expiration < block.timestamp, "Option has not expired yet");
         require(option.state == State.Active, "Option is not active");
         option.state = State.Expired;
-        unlockFunds(option);
+        pool.unlock(optionID);
         emit Expire(optionID, option.premium);
     }
 
@@ -357,12 +334,13 @@ contract HegicWBTCOptions is Ownable {
 
     /**
      * @notice Sends profits in WBTC from the WBTC pool to an option holder's address
-     * @param option A specific option contract
+     * @param optionID A specific option contract id
      */
-    function payProfit(Option memory option)
+    function payProfit(uint optionID)
         internal
         returns (uint profit)
     {
+        Option memory option = options[optionID];
         (, int latestPrice, , , ) = priceProvider.latestRoundData();
         uint256 currentPrice = uint256(latestPrice);
         if (option.optionType == OptionType.Call) {
@@ -374,8 +352,7 @@ contract HegicWBTCOptions is Ownable {
         }
         if (profit > option.lockedAmount)
             profit = option.lockedAmount;
-        pool.send(option.holder, profit);
-        unlockFunds(option);
+        pool.send(optionID, option.holder, profit);
     }
 
     /**
@@ -399,15 +376,6 @@ contract HegicWBTCOptions is Ownable {
                 block.timestamp
             );
             return amounts[0];
-    }
-
-    /**
-     * @notice Unlocks the amount that was locked in an option contract
-     * @param option A specific option contract
-     */
-    function unlockFunds(Option memory option) internal {
-        pool.unlockPremium(option.premium);
-        pool.unlock(option.lockedAmount);
     }
 
     /**

@@ -1,3 +1,5 @@
+pragma solidity 0.6.12;
+
 /**
  * SPDX-License-Identifier: GPL-3.0-or-later
  * Hegic
@@ -17,7 +19,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pragma solidity 0.6.12;
 import "../Interfaces/Interfaces.sol";
 
 
@@ -38,6 +39,7 @@ contract HegicETHPool is
     uint256 public lockedPremium;
     mapping(address => uint256) public lastProvideTimestamp;
     mapping(address => bool) public _revertTransfersInLockUpPeriod;
+    LockedLiquidity[] public lockedLiquidity;
 
     /**
      * @notice Used for changing the lockup period
@@ -107,38 +109,31 @@ contract HegicETHPool is
      * @nonce calls by HegicCallOptions to lock the funds
      * @param amount Amount of funds that should be locked in an option
      */
-    function lock(uint256 amount) external override onlyOwner {
+    function lock(uint id, uint256 amount) external override onlyOwner payable {
+        require(id == lockedLiquidity.length, "Wrong id");
         require(
             lockedAmount.add(amount).mul(10).div(totalBalance()) < 8,
-            "Pool Error: You are trying to unlock more funds than have been locked for your contract. Please lower the amount."
+            "Pool Error: Amount is too large."
         );
+
+        lockedLiquidity.push(LockedLiquidity(amount, msg.value, true));
+        lockedPremium = lockedPremium.add(msg.value);
         lockedAmount = lockedAmount.add(amount);
     }
 
     /*
      * @nonce calls by HegicOptions to unlock the funds
-     * @param amount Amount of funds that should be unlocked in an expired option
+     * @param id Id of LockedLiquidity that should be unlocked
      */
-    function unlock(uint256 amount) external override onlyOwner {
-        require(lockedAmount >= amount, "Pool Error: You are trying to unlock more funds than have been locked for your contract. Please lower the amount.");
-        lockedAmount = lockedAmount.sub(amount);
-    }
+    function unlock(uint256 id) external override onlyOwner {
+        LockedLiquidity storage ll = lockedLiquidity[id];
+        require(ll.locked, "LockedLiquidity with such id has already unlocked");
+        ll.locked = false;
 
-    /*
-     * @nonce calls by HegicOptions to lock the premiums
-     * @param amount Amount of premiums that should be locked
-     */
-    function sendPremium() external override payable onlyOwner {
-        lockedPremium = lockedPremium.add(msg.value);
-    }
+        lockedPremium = lockedPremium.sub(ll.premium);
+        lockedAmount = lockedAmount.sub(ll.amount);
 
-    /*
-     * @nonce calls by HegicPutOptions to unlock the premiums after an option's expiraton
-     * @param amount Amount of premiums that should be unlocked
-     */
-    function unlockPremium(uint256 amount) external override onlyOwner {
-        require(lockedPremium >= amount, "Pool Error: You are trying to unlock more premiums than have been locked for the contract. Please lower the amount.");
-        lockedPremium = lockedPremium.sub(amount);
+        emit Profit(id, ll.premium);
     }
 
     /*
@@ -146,14 +141,26 @@ contract HegicETHPool is
      * @param to Provider
      * @param amount Funds that should be sent
      */
-    function send(address payable to, uint256 amount)
+    function send(uint id, address payable to, uint256 amount)
         external
         override
         onlyOwner
     {
+        LockedLiquidity storage ll = lockedLiquidity[id];
+        require(ll.locked, "LockedLiquidity with such id has already unlocked");
         require(to != address(0));
-        require(lockedAmount >= amount, "Pool Error: You are trying to unlock more premiums than have been locked for the contract. Please lower the amount.");
-        to.transfer(amount);
+
+        ll.locked = false;
+        lockedPremium = lockedPremium.sub(ll.premium);
+        lockedAmount = lockedAmount.sub(ll.amount);
+
+        uint transferAmount = amount > ll.amount ? ll.amount : amount;
+        to.transfer(transferAmount);
+
+        if (transferAmount <= ll.premium)
+            emit Profit(id, ll.premium - transferAmount);
+        else
+            emit Loss(id, transferAmount - ll.premium);
     }
 
     /*

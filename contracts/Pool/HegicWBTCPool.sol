@@ -1,3 +1,5 @@
+pragma solidity 0.6.12;
+
 /**
  * SPDX-License-Identifier: GPL-3.0-or-later
  * Hegic
@@ -17,7 +19,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pragma solidity 0.6.12;
 import "../Interfaces/Interfaces.sol";
 
 
@@ -32,12 +33,14 @@ contract HegicERCPool is
     ERC20("Hegic WBTC LP Token", "writeWBTC")
 {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
     uint256 public constant INITIAL_RATE = 1e10;
     uint256 public lockupPeriod = 2 weeks;
     uint256 public lockedAmount;
     uint256 public lockedPremium;
     mapping(address => uint256) public lastProvideTimestamp;
     mapping(address => bool) public _revertTransfersInLockUpPeriod;
+    LockedLiquidity[] public lockedLiquidity;
     IERC20 public override token;
 
     /*
@@ -60,42 +63,32 @@ contract HegicERCPool is
      * @nonce calls by HegicPutOptions to lock funds
      * @param amount Amount of funds that should be locked in an option
      */
-    function lock(uint256 amount) external override onlyOwner {
+    function lock(uint id, uint256 amount, uint256 premium) external override onlyOwner {
+        require(id == lockedLiquidity.length, "Wrong id");
         require(
             lockedAmount.add(amount).mul(10).div(totalBalance()) < 8,
-            "Pool Error: Not enough funds on the pool contract. Please lower the amount."
+            "Pool Error: Amount is too large."
         );
+
+        lockedLiquidity.push(LockedLiquidity(amount, premium, true));
+        lockedPremium = lockedPremium.add(premium);
         lockedAmount = lockedAmount.add(amount);
+        token.safeTransferFrom(msg.sender, address(this), premium);
     }
 
     /*
      * @nonce Calls by HegicPutOptions to unlock funds
      * @param amount Amount of funds that should be unlocked in an expired option
      */
-    function unlock(uint256 amount) external override onlyOwner {
-        require(lockedAmount >= amount, "Pool Error: You are trying to unlock more funds than have been locked for your contract. Please lower the amount.");
-        lockedAmount = lockedAmount.sub(amount);
-    }
+    function unlock(uint256 id) external override onlyOwner {
+        LockedLiquidity storage ll = lockedLiquidity[id];
+        require(ll.locked, "LockedLiquidity with such id has already unlocked");
+        ll.locked = false;
 
-    /*
-     * @nonce Calls by HegicPutOptions to send and lock the premiums
-     * @param amount Funds that should be locked
-     */
-    function sendPremium(uint256 amount) external override onlyOwner {
-        lockedPremium = lockedPremium.add(amount);
-        require(
-            token.transferFrom(msg.sender, address(this), amount),
-            "Token transfer error: Please lower the amount of premiums that you want to send."
-        );
-    }
+        lockedPremium = lockedPremium.sub(ll.premium);
+        lockedAmount = lockedAmount.sub(ll.amount);
 
-    /*
-     * @nonce Calls by HegicPutOptions to unlock premium after an option expiraton
-     * @param amount Amount of premiums that should be locked
-     */
-    function unlockPremium(uint256 amount) external override onlyOwner {
-        require(lockedPremium >= amount, "Pool Error: You are trying to unlock more premiums than have been locked for the contract. Please lower the amount.");
-        lockedPremium = lockedPremium.sub(amount);
+        emit Profit(id, ll.premium);
     }
 
     /*
@@ -103,14 +96,31 @@ contract HegicERCPool is
      * @param to Provider
      * @param amount Amount of premiums that should be unlocked
      */
-    function send(address payable to, uint256 amount)
+    /*
+     * @nonce calls by HegicCallOptions to send funds to liquidity providers after an option's expiration
+     * @param to Provider
+     * @param amount Funds that should be sent
+     */
+    function send(uint id, address payable to, uint256 amount)
         external
         override
         onlyOwner
     {
+        LockedLiquidity storage ll = lockedLiquidity[id];
+        require(ll.locked, "LockedLiquidity with such id has already unlocked");
         require(to != address(0));
-        require(lockedAmount >= amount, "Pool Error: You are trying to unlock more premiums than have been locked for the contract. Please lower the amount.");
-        require(token.transfer(to, amount), "Token transfer error: Please lower the amount of premiums that you want to send.");
+
+        ll.locked = false;
+        lockedPremium = lockedPremium.sub(ll.premium);
+        lockedAmount = lockedAmount.sub(ll.amount);
+
+        uint transferAmount = amount > ll.amount ? ll.amount : amount;
+        token.safeTransfer(to, transferAmount);
+
+        if (transferAmount <= ll.premium)
+            emit Profit(id, ll.premium - transferAmount);
+        else
+            emit Loss(id, transferAmount - ll.premium);
     }
 
     /*

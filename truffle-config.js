@@ -45,7 +45,8 @@ module.exports = {
       skipDryRun: true, // Skip dry run before migrations? (default: false for public nets )
     },
   },
-
+  plugins: ["solidity-coverage"],
+  
   // Set default mocha options here, use special reporters etc.
   mocha: {slow: 10000},
 

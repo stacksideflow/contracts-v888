@@ -1,3 +1,5 @@
+pragma solidity 0.6.12;
+
 /**
  * SPDX-License-Identifier: GPL-3.0-or-later
  * Hegic
@@ -17,27 +19,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import "./HegicStaking.sol";
-pragma solidity 0.6.12;
+import "./BondingCurve.sol";
 
 
-contract HegicStakingETH is HegicStaking, IHegicStakingETH {
+contract LinearBondingCurve is BondingCurve {
     using SafeMath for uint;
+    using SafeERC20 for IERC20;
+    uint internal immutable K;
+    uint internal immutable START_PRICE;
 
-    constructor(ERC20 _token) public
-        HegicStaking(_token, "HEGIC ETH Staking lot", "hlETH") {}
-
-    function sendProfit() external payable override {
-        uint _totalSupply = totalSupply();
-        if (_totalSupply > 0) {
-            totalProfit += msg.value.mul(ACCURACY) / _totalSupply;
-            emit Profit(msg.value);
-        } else {
-            FALLBACK_RECIPIENT.transfer(msg.value);
-        }
+    constructor(IERC20 _token, uint k, uint startPrice) public BondingCurve(_token) {
+        K = k;
+        START_PRICE = startPrice;
     }
 
-    function _transferProfit(uint amount) internal override {
-        msg.sender.transfer(amount);
+    function s(uint x0, uint x1) public view override returns (uint) {
+        require(x1 > x0);
+        return x1.add(x0).mul(x1.sub(x0))
+            .div(2).div(K)
+            .add(START_PRICE.mul(x1 - x0))
+            .div(1e18);
     }
 }

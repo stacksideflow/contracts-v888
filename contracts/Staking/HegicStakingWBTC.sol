@@ -40,7 +40,7 @@ contract HegicStakingWBTC is HegicStaking, IHegicStakingERC20 {
             WBTC.safeTransferFrom(msg.sender, address(this), amount);
             emit Profit(amount);
         } else {
-            WBTC.safeTransferFrom(msg.sender, FALLBACK_RECEPIENT, amount);
+            WBTC.safeTransferFrom(msg.sender, FALLBACK_RECIPIENT, amount);
         }
     }
 
