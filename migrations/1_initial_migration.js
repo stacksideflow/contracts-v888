@@ -12,6 +12,7 @@ const StakingETH = artifacts.require("HegicStakingETH")
 const StakingWBTC = artifacts.require("HegicStakingWBTC")
 const ETHRewards = artifacts.require("HegicETHRewards")
 const WBTCRewards = artifacts.require("HegicWBTCRewards")
+const InitialOffering = artifacts.require("HegicInitialOffering")
 const BC = artifacts.require("LinearBondingCurve")
 
 const params = {
@@ -30,6 +31,7 @@ module.exports = async function (deployer, network) {
       await deployer.deploy(HEGIC)
       await deployer.deploy(ETHPool)
       await deployer.deploy(BC, HEGIC.address, params.BC.k, params.BC.startPrice)
+      await deployer.deploy(InitialOffering, HEGIC.address)
       await deployer.deploy(Exchange, WBTC.address, params.BTCPrice)
       await deployer.deploy(PriceProvider, params.ETHPrice)
       await deployer.deploy(BTCPriceProvider, params.BTCPrice)

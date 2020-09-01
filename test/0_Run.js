@@ -10,6 +10,7 @@ const tests = {
     RewardsWBTC: require('./Rewards/WBTCRewards.js'),
     RewardsETH: require('./Rewards/ETHRewards.js'),
     BC: require('./BondingCurve/Linear.js'),
+    IO: require('./InitialOffering/HegicInitialOffering.js'),
 }
 
 if(process.env.DEVMOD){
@@ -24,7 +25,8 @@ if(process.env.DEVMOD){
     //
     // tests.RewardsWBTC.test()
     // tests.RewardsETH.test()
-    tests.BC.test()
+    // tests.BC.test()
+    tests.IO.test()
 } else {
     Object.values(tests).forEach(x => x.test());
 }
