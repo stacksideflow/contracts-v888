@@ -15,6 +15,8 @@ const WBTCRewards = artifacts.require("HegicWBTCRewards")
 const InitialOffering = artifacts.require("HegicInitialOffering")
 const BC = artifacts.require("LinearBondingCurve")
 
+const ADDRESSES_FILE = process.env.ADDRESSES_FILE
+
 const params = {
     ETHPrice: new BN(380e8),
     BTCPrice: new BN("1161000000000"),
@@ -51,7 +53,25 @@ module.exports = async function (deployer, network) {
       )
       await deployer.deploy(ETHRewards, ETHOptions.address, HEGIC.address)
       await deployer.deploy(WBTCRewards, WBTCOptions.address, HEGIC.address)
-
+      if(ADDRESSES_FILE){
+          const fs = require('fs');
+          fs.writeFileSync(ADDRESSES_FILE, JSON.stringify({
+              WBTC: WBTC.address,
+              ETHPriceProvider: PriceProvider.address,
+              BTCPriceProvider: BTCPriceProvider.address,
+              WBTC: WBTC.address,
+              HEGIC: HEGIC.address,
+              ETHOptions: ETHOptions.address,
+              WBTCOptions: WBTCOptions.address,
+              ETHPool: await ETHOptions.deployed().then(x => x.pool()),
+              WBTCPool:await WBTCOptions.deployed().then(x => x.pool()),
+              ETHStaking: StakingETH.address,
+              WBTCStaking: StakingWBTC.address,
+              ETHRewards: ETHRewards.address,
+              WBTCRewards: WBTCRewards.address,
+              InitialOffering: InitialOffering.address,
+          }))
+      }
   } else {
       throw Error(`wrong network ${network}`)
   }

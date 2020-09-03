@@ -32,12 +32,13 @@ contract HegicInitialOffering is Ownable {
     using SafeERC20 for IERC20;
     using SafeMath for uint;
 
-    event Claimed(uint userShare, uint hegicAmount);
+    event Claimed(address indexed account, uint userShare, uint hegicAmount);
+    event Received(address indexed account, uint amount);
 
-    uint public constant START = 1599609600;
+    uint public constant START = 1599678000;
     uint public constant END = START + 3 days;
     uint public constant TOTAL_DISTRIBUTE_AMOUNT = 90_360_300e18;
-    uint public constant MINIMAL_PROVIDE_AMOUNT = 520 ether;
+    uint public constant MINIMAL_PROVIDE_AMOUNT = 700 ether;
     uint public totalProvided = 0;
     mapping(address => uint) public provided;
     IERC20 public immutable HEGIC;
@@ -51,6 +52,7 @@ contract HegicInitialOffering is Ownable {
         require(block.timestamp <= END, "The offering has already ended");
         totalProvided += msg.value;
         provided[msg.sender] += msg.value;
+        emit Received(msg.sender, msg.value);
     }
 
     function claim() external {
@@ -65,10 +67,10 @@ contract HegicInitialOffering is Ownable {
                 .mul(userShare)
                 .div(totalProvided);
             HEGIC.safeTransfer(msg.sender, hegicAmount);
-            emit Claimed(userShare, hegicAmount);
+            emit Claimed(msg.sender, userShare, hegicAmount);
         } else {
             msg.sender.transfer(userShare);
-            emit Claimed(userShare, 0);
+            emit Claimed(msg.sender, userShare, 0);
         }
     }
 

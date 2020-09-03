@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "DEVMOD=true truffle console",
-    "ganache": "ganache-cli -e 10000000",
+    "ganache": "ganache-cli -e 10000000 -m \"pull explain moon stereo foil tuna gospel tape battle come smooth fresh lizard culture review\"",
     "test": "truffle test",
     "coverage": "truffle run coverage",
     "lint": "prettier './**/*.js' './**/*.sol' './**/*.md' --write",
