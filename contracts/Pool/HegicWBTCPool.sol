@@ -166,7 +166,8 @@ contract HegicERCPool is
             amount <= availableBalance(),
             "Pool Error: You are trying to unlock more funds than have been locked for your contract. Please lower the amount."
         );
-        burn = amount.mul(totalSupply()).div(totalBalance());
+
+        burn = divCeil(amount.mul(totalSupply()), totalBalance());
 
         require(burn <= maxBurn, "Pool: Burn limit is too small");
         require(burn <= balanceOf(msg.sender), "Pool: Amount is too large");
@@ -217,5 +218,13 @@ contract HegicERCPool is
             );
             lastProvideTimestamp[to] = lastProvideTimestamp[from];
         }
+    }
+
+    function divCeil(uint256 a, uint256 b) internal pure returns (uint256) {
+        require(b > 0);
+        uint256 c = a / b;
+        if (a % b != 0)
+            c = c + 1;
+        return c;
     }
 }
