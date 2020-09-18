@@ -114,8 +114,9 @@ contract HegicETHOptions is Ownable, IHegicOptions {
         require(period >= 1 days, "Period is too short");
         require(period <= 4 weeks, "Period is too long");
         require(amount > strikeFee, "Price difference is too large");
-        require(msg.value == total, "Wrong value");
-
+        require(msg.value >= total, "Wrong value");
+        if (msg.value > total) msg.sender.transfer(msg.value - total);
+        
         uint256 strikeAmount = amount.sub(strikeFee);
         optionID = options.length;
         Option memory option = Option(

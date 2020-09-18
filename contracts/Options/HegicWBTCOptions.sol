@@ -131,7 +131,8 @@ contract HegicWBTCOptions is Ownable, IHegicOptions {
         require(period >= 1 days, "Period is too short");
         require(period <= 4 weeks, "Period is too long");
         require(amount > strikeFee, "price difference is too large");
-        require(msg.value >= totalETH, "value is too small");
+        require(msg.value >= totalETH, "Wrong value");
+        if (msg.value > totalETH) msg.sender.transfer(msg.value - totalETH);
 
         uint256 strikeAmount = amount.sub(strikeFee);
         uint premium = total.sub(settlementFee);

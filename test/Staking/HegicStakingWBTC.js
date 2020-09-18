@@ -117,6 +117,8 @@ module.exports.test = () => contract("HegicStakingWBTC", ([user1, user2, user3])
 
     it("Should sell a lot", async () => {
         const {StakingWBTC} = await contracts
+        await timeTravel(24 * 3600 +1)
+
         await StakingWBTC.sell("1")
     })
 
@@ -124,6 +126,7 @@ module.exports.test = () => contract("HegicStakingWBTC", ([user1, user2, user3])
         const {StakingWBTC} = await contracts
         await sendProfit(3000)
         const startProfit = await StakingWBTC.profitOf(user1).then(x=>x.toString())
+        await timeTravel(24 * 3600 +1)
         await StakingWBTC.sell("2")
         const endProfit = await StakingWBTC.profitOf(user1).then(x=>x.toString())
         assert.equal(startProfit, endProfit)
@@ -136,6 +139,7 @@ module.exports.test = () => contract("HegicStakingWBTC", ([user1, user2, user3])
         await sendProfit("3000")
 
         const profit = await StakingWBTC.profitOf(user1).then(x => x.toString())
+        await timeTravel(24 * 3600 +1)
 
         await StakingWBTC.balanceOf(user1).then(x => StakingWBTC.sell(x) )
 

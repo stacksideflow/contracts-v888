@@ -112,7 +112,7 @@ contract HegicETHPool is
     function lock(uint id, uint256 amount) external override onlyOwner payable {
         require(id == lockedLiquidity.length, "Wrong id");
         require(
-            lockedAmount.add(amount).mul(10).div(totalBalance()) < 8,
+            lockedAmount.add(amount).mul(10) < totalBalance().sub(msg.value).mul(8),
             "Pool Error: Amount is too large."
         );
 

@@ -64,6 +64,7 @@ contract HegicStaking is ERC20, IHegicStaking {
     }
 
     function buy(uint amount) external override {
+        lastBoughtTimestamp[msg.sender] = block.timestamp;
         require(amount > 0, "Amount is zero");
         require(totalSupply() + amount <= MAX_SUPPLY);
         _mint(msg.sender, amount);
@@ -71,6 +72,9 @@ contract HegicStaking is ERC20, IHegicStaking {
     }
 
     function sell(uint amount) external override lockupFree {
+        require(
+            lastBoughtTimestamp[msg.sender].add(lockupPeriod) <= block.timestamp
+        );
         _burn(msg.sender, amount);
         HEGIC.safeTransfer(msg.sender, amount.mul(LOT_PRICE));
     }

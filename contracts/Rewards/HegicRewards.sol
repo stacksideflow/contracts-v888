@@ -54,9 +54,10 @@ contract HegicRewards is Ownable {
         uint amount = rewardAmount(optionId);
         uint today = block.timestamp / 1 days;
         (, address holder, , , , , , ) =  hegicOptions.options(optionId);
+        dailyReward[today] = dailyReward[today].add(amount);
         require(!rewardedOptions[optionId], "The option was rewarded");
         require(
-            amount.add(dailyReward[today]) < MAX_DAILY_REWARD,
+            dailyReward[today] < MAX_DAILY_REWARD,
             "Exceeds daily limits"
         );
         rewardedOptions[optionId] = true;

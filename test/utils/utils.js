@@ -13,7 +13,6 @@ const HegicRewadsWBTCContract = artifacts.require("HegicWBTCRewards")
 const HegicStakingETHContract = artifacts.require("HegicStakingETH")
 const HegicStakingWBTCContract = artifacts.require("HegicStakingWBTC")
 const HegicBCContract = artifacts.require("LinearBondingCurve")
-const HegicIOContract = artifacts.require("HegicInitialOffering")
 const BN = web3.utils.BN
 
 
@@ -65,11 +64,6 @@ const getBCContracts = () => Promise.all([
     HEGICContract.deployed()
 ]).then(([BondingCurve, HEGIC]) => ({BondingCurve, HEGIC}))
 
-const getIOContracts = () => Promise.all([
-    HegicIOContract.deployed(),
-    HEGICContract.deployed()
-]).then(([InitialOffering, HEGIC]) => ({InitialOffering, HEGIC}))
-
 const snapshot = () => send("evm_snapshot").then(x => x.result)
 const revert = (snap) => send("evm_revert", [snap])
 
@@ -77,9 +71,8 @@ module.exports = {
   getContracts,
   timeTravel,
   getBCContracts,
-  getIOContracts,
   snapshot, revert,
   toWei: (value) => web3.utils.toWei(value.toString(), "ether"),
   MAX_INTEGER: new BN(2).pow(new BN(256)).sub(new BN(1)),
-  OptionType: {Put: 0 , Call: 1}
+  OptionType: {Put: 1 , Call: 2}
 }

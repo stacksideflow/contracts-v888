@@ -81,8 +81,8 @@ interface IHegicOptions {
 
     event Exercise(uint256 indexed id, uint256 profit);
     event Expire(uint256 indexed id, uint256 premium);
-    enum State {Active, Exercised, Expired}
-    enum OptionType {Put, Call}
+    enum State {Inactive, Active, Exercised, Expired}
+    enum OptionType {Invalid, Put, Call}
 
     struct Option {
         State state;

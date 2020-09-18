@@ -231,7 +231,7 @@ it("Should provide funds to the pool", async () => {
 
   it("Should unlock expired options", async () => {
     const {WBTCOptions} = await contracts
-    const EXPIRED = toBN(2)
+    const EXPIRED = toBN(3)
     const expected = await Promise.all([
       createOption({period: 3, user: user3}),
       createOption({period: 3, user: user1}),
