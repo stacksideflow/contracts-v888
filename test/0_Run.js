@@ -15,14 +15,14 @@ const tests = {
 if(process.env.DEVMOD){
     // tests.poolEth.test()
     // tests.poolWBTC.test()
-    tests.ETH_CALL.test()
-    tests.WBTC_CALL.test()
-    tests.WBTC_PUT.test()
-    tests.ETH_PUT.test()
+    // tests.ETH_CALL.test()
+    // tests.WBTC_CALL.test()
+    // tests.WBTC_PUT.test()
+    // tests.ETH_PUT.test()
     // tests.StakingETH.test()
     // tests.StakingWBTC.test()
     //
-    // tests.RewardsWBTC.test()
+    tests.RewardsWBTC.test()
     // tests.RewardsETH.test()
     // tests.BC.test()
 } else {

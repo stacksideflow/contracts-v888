@@ -149,7 +149,7 @@ contract HegicWBTCOptions is Ownable, IHegicOptions {
             optionType
         );
 
-        uint amountIn = swapToWBTC(msg.value, total);
+        uint amountIn = swapToWBTC(totalETH, total);
         if (amountIn < msg.value) {
             msg.sender.transfer(msg.value.sub(amountIn));
         }

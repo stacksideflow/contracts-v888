@@ -53,8 +53,11 @@ contract HegicRewards is Ownable {
     function getReward(uint optionId) external {
         uint amount = rewardAmount(optionId);
         uint today = block.timestamp / 1 days;
-        (, address holder, , , , , , ) =  hegicOptions.options(optionId);
         dailyReward[today] = dailyReward[today].add(amount);
+
+        (IHegicOptions.State state, address holder, , , , , , ) =
+            hegicOptions.options(optionId);
+        require(state != IHegicOptions.State.Inactive, "The option is inactive");
         require(!rewardedOptions[optionId], "The option was rewarded");
         require(
             dailyReward[today] < MAX_DAILY_REWARD,

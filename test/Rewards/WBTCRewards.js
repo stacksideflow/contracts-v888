@@ -71,20 +71,20 @@ module.exports.test = () => contract("HegicWBTCRewards", ([user1, user2, user3, 
 
     it("Should setup rewardsRate", async () => {
         const {WBTCRewards} = await contracts
-        await WBTCRewards.setRewardsRate("10000000000000000000")
-        await WBTCRewards.setRewardsRate("100000000000000000000")
-        await WBTCRewards.setRewardsRate("1000000000000000000000")
-        await WBTCRewards.setRewardsRate("10000000000000000000000")
-        await WBTCRewards.setRewardsRate("100000000000000000000000")
-        await WBTCRewards.setRewardsRate("1000000000000000000000000")
+        await WBTCRewards.setRewardsRate("1000000000")
+        await WBTCRewards.setRewardsRate("10000000000")
+        await WBTCRewards.setRewardsRate("100000000000")
+        await WBTCRewards.setRewardsRate("1000000000000")
+        await WBTCRewards.setRewardsRate("10000000000000")
+        await WBTCRewards.setRewardsRate("100000000000000")
     })
 
     it("Shouldn't setup wrong rewardsRate", async () => {
         const {WBTCRewards} = await contracts
-        await WBTCRewards.setRewardsRate("9999999999999999999").then(
+        await WBTCRewards.setRewardsRate("999999999").then(
             () => assert.fail('Wrong rewards rate was accepted'),() => {}
         )
-        await WBTCRewards.setRewardsRate("10000000000000000000000001").then(
+        await WBTCRewards.setRewardsRate("1000000000000001").then(
             () => assert.fail('Wrong rewards rate was accepted'),() => {}
         )
     })
