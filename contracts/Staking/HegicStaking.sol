@@ -72,9 +72,6 @@ contract HegicStaking is ERC20, IHegicStaking {
     }
 
     function sell(uint amount) external override lockupFree {
-        require(
-            lastBoughtTimestamp[msg.sender].add(lockupPeriod) <= block.timestamp
-        );
         _burn(msg.sender, amount);
         HEGIC.safeTransfer(msg.sender, amount.mul(LOT_PRICE));
     }

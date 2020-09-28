@@ -41,7 +41,7 @@ contract HegicWBTCOptions is Ownable, IHegicOptions {
     HegicERCPool public pool;
     IUniswapV2Router01 public uniswapRouter;
     address[] public ethToWbtcSwapPath;
-    IERC20 wbtc;
+    IERC20 public wbtc;
 
     /**
      * @param _priceProvider The address of ChainLink BTC/USD price feed contract
@@ -106,7 +106,6 @@ contract HegicWBTCOptions is Ownable, IHegicOptions {
         optionCollateralizationRatio = value;
     }
 
-
     /**
      * @notice Creates a new option
      * @param period Option period in seconds (1 days <= period <= 4 weeks)
@@ -127,12 +126,13 @@ contract HegicWBTCOptions is Ownable, IHegicOptions {
     {
         (uint256 total, uint256 totalETH, uint256 settlementFee, uint256 strikeFee, ) =
             fees(period, amount, strike, optionType);
-
+        require(
+            optionType == OptionType.Call || optionType == OptionType.Put,
+            "Wrong option type"
+        );
         require(period >= 1 days, "Period is too short");
         require(period <= 4 weeks, "Period is too long");
         require(amount > strikeFee, "price difference is too large");
-        require(msg.value >= totalETH, "Wrong value");
-        if (msg.value > totalETH) msg.sender.transfer(msg.value - totalETH);
 
         uint256 strikeAmount = amount.sub(strikeFee);
         uint premium = total.sub(settlementFee);

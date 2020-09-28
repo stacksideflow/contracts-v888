@@ -28,8 +28,7 @@ contract HegicStakingWBTC is HegicStaking, IHegicStakingERC20 {
     IERC20 public immutable WBTC;
 
     constructor(ERC20 _token, ERC20 wbtc) public
-        HegicStaking(_token, "HEGIC WBTC Staking lot", "hlWBTC")
-    {
+        HegicStaking(_token, "HEGIC WBTC Staking lot", "hlWBTC") {
         WBTC = wbtc;
     }
 
