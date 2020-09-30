@@ -14,7 +14,7 @@ const ETHRewards = artifacts.require("HegicETHRewards")
 const WBTCRewards = artifacts.require("HegicWBTCRewards")
 const BC = artifacts.require("LinearBondingCurve")
 
-const ADDRESSES_FILE = process.env.ADDRESSES_FILE
+const CONTRACTS_FILE = process.env.CONTRACTS_FILE
 
 const params = {
     ETHPrice: new BN(380e8),
@@ -51,23 +51,61 @@ module.exports = async function (deployer, network) {
       )
       await deployer.deploy(ETHRewards, ETHOptions.address, HEGIC.address)
       await deployer.deploy(WBTCRewards, WBTCOptions.address, HEGIC.address)
-      if(ADDRESSES_FILE){
+      if(CONTRACTS_FILE){
           const fs = require('fs');
-          fs.writeFileSync(ADDRESSES_FILE, JSON.stringify({
-              WBTC: WBTC.address,
-              ETHPriceProvider: PriceProvider.address,
-              BTCPriceProvider: BTCPriceProvider.address,
-              WBTC: WBTC.address,
-              HEGIC: HEGIC.address,
-              ETHOptions: ETHOptions.address,
-              WBTCOptions: WBTCOptions.address,
-              ETHPool: await ETHOptions.deployed().then(x => x.pool()),
-              WBTCPool:await WBTCOptions.deployed().then(x => x.pool()),
-              ETHStaking: StakingETH.address,
-              WBTCStaking: StakingWBTC.address,
-              ETHRewards: ETHRewards.address,
-              WBTCRewards: WBTCRewards.address,
-              InitialOffering: InitialOffering.address,
+          fs.writeFileSync(CONTRACTS_FILE, JSON.stringify({
+              WBTC: {
+                  address: WBTC.address,
+                  abi: WBTC.abi
+              },
+              ETHPriceProvider: {
+                  address: PriceProvider.address,
+                  abi: PriceProvider.abi
+              },
+              BTCPriceProvider: {
+                  address: BTCPriceProvider.address,
+                  abi: BTCPriceProvider.abi
+              },
+              WBTC: {
+                  address: WBTC.address,
+                  abi: WBTC.abi
+              },
+              HEGIC: {
+                  address: HEGIC.address,
+                  abi: HEGIC.abi
+              },
+              ETHOptions: {
+                  address: ETHOptions.address,
+                  abi: ETHOptions.abi
+              },
+              WBTCOptions: {
+                  address: WBTCOptions.address,
+                  abi: WBTCOptions.abi
+              },
+              ETHPool: {
+                  address: await ETHOptions.deployed().then(x => x.pool()),
+                  abi: await ETHPool.abi
+              },
+              WBTCPool: {
+                  address: await WBTCOptions.deployed().then(x => x.pool()),
+                  abi: await ERCPool.abi
+              },
+              ETHStaking: {
+                  address: StakingETH.address,
+                  abi: StakingETH.abi
+              },
+              WBTCStaking: {
+                  address: StakingWBTC.address,
+                  abi: StakingWBTC.abi
+              },
+              ETHRewards: {
+                  address: ETHRewards.address,
+                  abi: ETHRewards.abi
+              },
+              WBTCRewards: {
+                  address: WBTCRewards.address,
+                  abi: WBTCRewards.abi
+              },
           }))
       }
   } else {

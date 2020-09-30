@@ -384,7 +384,7 @@ contract HegicWBTCOptions is Ownable, IHegicOptions {
      */
     function sqrt(uint256 x) private pure returns (uint256 result) {
         result = x;
-        uint256 k = x.add(1).div(2);
+        uint256 k = x.div(2).add(1);
         while (k < result) (result, k) = (k, x.div(k).add(k).div(2));
     }
 }
