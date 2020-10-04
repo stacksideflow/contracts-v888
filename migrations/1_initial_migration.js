@@ -106,6 +106,10 @@ module.exports = async function (deployer, network) {
                   address: WBTCRewards.address,
                   abi: WBTCRewards.abi
               },
+              BC:{
+                  address: BC.address,
+                  abi: BC.abi
+              },
           }))
       }
   } else {
