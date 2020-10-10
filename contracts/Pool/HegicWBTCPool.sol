@@ -34,7 +34,7 @@ contract HegicERCPool is
 {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
-    uint256 public constant INITIAL_RATE = 1e10;
+    uint256 public constant INITIAL_RATE = 1e13;
     uint256 public lockupPeriod = 2 weeks;
     uint256 public lockedAmount;
     uint256 public lockedPremium;
@@ -65,8 +65,9 @@ contract HegicERCPool is
      */
     function lock(uint id, uint256 amount, uint256 premium) external override onlyOwner {
         require(id == lockedLiquidity.length, "Wrong id");
+
         require(
-            lockedAmount.add(amount).mul(10) < totalBalance().mul(8),
+            lockedAmount.add(amount).mul(10) <= totalBalance().mul(8),
             "Pool Error: Amount is too large."
         );
 

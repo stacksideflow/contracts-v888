@@ -29,7 +29,7 @@ contract HegicWBTCRewards is HegicRewards {
     ) public HegicRewards(
         _hegicOptions,
         _hegic,
-        1_000_000e8,
+        1_000_000e18,
         10e8
     ) {}
 }

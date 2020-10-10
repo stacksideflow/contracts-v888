@@ -53,7 +53,11 @@ interface IETHLiquidityPool is ILiquidityPool {
 }
 
 
-interface IHegicStaking {
+interface IHegicStaking {    
+    event Claim(address indexed acount, uint amount);
+    event Profit(uint amount);
+
+
     function claimProfit() external returns (uint profit);
     function buy(uint amount) external;
     function sell(uint amount) external;

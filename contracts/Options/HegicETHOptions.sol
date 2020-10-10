@@ -33,7 +33,7 @@ contract HegicETHOptions is Ownable, IHegicOptions {
     IHegicStakingETH public settlementFeeRecipient;
     Option[] public override options;
     uint256 public impliedVolRate;
-    uint256 public optionCollateralizationRatio = 50;
+    uint256 public optionCollateralizationRatio = 100;
     uint256 internal constant PRICE_DECIMALS = 1e8;
     uint256 internal contractCreationTimestamp;
     AggregatorV3Interface public priceProvider;
@@ -116,7 +116,7 @@ contract HegicETHOptions is Ownable, IHegicOptions {
         require(amount > strikeFee, "Price difference is too large");
         require(msg.value >= total, "Wrong value");
         if (msg.value > total) msg.sender.transfer(msg.value - total);
-        
+
         uint256 strikeAmount = amount.sub(strikeFee);
         optionID = options.length;
         Option memory option = Option(
