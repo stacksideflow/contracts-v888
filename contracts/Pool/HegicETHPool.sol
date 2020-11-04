@@ -94,7 +94,7 @@ contract HegicETHPool is
             amount <= availableBalance(),
             "Pool Error: Not enough funds on the pool contract. Please lower the amount."
         );
-        
+
         burn = divCeil(amount.mul(totalSupply()), totalBalance());
 
         require(burn <= maxBurn, "Pool: Burn limit is too small");
@@ -113,7 +113,7 @@ contract HegicETHPool is
     function lock(uint id, uint256 amount) external override onlyOwner payable {
         require(id == lockedLiquidity.length, "Wrong id");
         require(
-            lockedAmount.add(amount).mul(10) < totalBalance().sub(msg.value).mul(8),
+            lockedAmount.add(amount).mul(10) <= totalBalance().sub(msg.value).mul(8),
             "Pool Error: Amount is too large."
         );
 

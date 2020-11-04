@@ -34,7 +34,7 @@ contract HegicWBTCOptions is Ownable, IHegicOptions {
     IHegicStakingERC20 public settlementFeeRecipient;
     Option[] public override options;
     uint256 public impliedVolRate;
-    uint256 public optionCollateralizationRatio = 50;
+    uint256 public optionCollateralizationRatio = 100;
     uint256 internal constant PRICE_DECIMALS = 1e8;
     uint256 internal contractCreationTimestamp;
     AggregatorV3Interface public priceProvider;

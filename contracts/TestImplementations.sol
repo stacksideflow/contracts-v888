@@ -19,7 +19,7 @@ pragma solidity 0.6.12;
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import "./Interfaces/Interfaces.sol";
-
+import "./Rewards/Synthetix/StakingRewards.sol";
 
 contract FakeExchange {
     uint256 public exchangeRate;
@@ -50,7 +50,7 @@ contract FakeExchange {
         returns (uint[] memory amounts)
     {
         amounts = new uint[](1);
-        amounts[0] = amountOut * exchangeRate * 100;
+        amounts[0] = amountOut * exchangeRate / 1e18;
     }
 }
 
@@ -122,4 +122,24 @@ contract FakeHEGIC is ERC20("FakeHEGIC", "FAKEH") {
     function mint(uint256 amount) public {
         _mint(msg.sender, amount);
     }
+}
+
+
+contract ETHStakingRewards is StakingRewards {
+    constructor(
+        address _owner,
+        address _rewardsDistribution,
+        address _rewardsToken,
+        address _stakingToken
+    ) public StakingRewards(_owner, _rewardsDistribution, _rewardsToken, _stakingToken) {}
+}
+
+
+contract WBTCStakingRewards is StakingRewards {
+    constructor(
+        address _owner,
+        address _rewardsDistribution,
+        address _rewardsToken,
+        address _stakingToken
+    ) public StakingRewards(_owner, _rewardsDistribution, _rewardsToken, _stakingToken) {}
 }

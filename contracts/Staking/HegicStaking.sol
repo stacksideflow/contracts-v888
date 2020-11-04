@@ -43,9 +43,6 @@ contract HegicStaking is ERC20, IHegicStaking {
     mapping(address => uint256) public lastBoughtTimestamp;
     mapping(address => bool) public _revertTransfersInLockUpPeriod;
 
-    event Claim(address indexed acount, uint amount);
-    event Profit(uint amount);
-
     constructor(ERC20 _token, string memory name, string memory short)
         public
         ERC20(name, short)
