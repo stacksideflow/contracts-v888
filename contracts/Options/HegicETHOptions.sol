@@ -36,17 +36,19 @@ contract HegicETHOptions is Ownable, IHegicOptions {
     uint256 public optionCollateralizationRatio = 100;
     uint256 internal constant PRICE_DECIMALS = 1e8;
     uint256 internal contractCreationTimestamp;
+    bool internal migrationProcess = true;
+    HegicETHOptions private oldHegicETHOptions;
     AggregatorV3Interface public priceProvider;
     HegicETHPool public pool;
 
     /**
      * @param pp The address of ChainLink ETH/USD price feed contract
      */
-    constructor(AggregatorV3Interface pp, IHegicStakingETH staking) public {
-        pool = new HegicETHPool();
+    constructor(AggregatorV3Interface pp, IHegicStakingETH staking, HegicETHPool _pool) public {
+        pool = _pool;
         priceProvider = pp;
         settlementFeeRecipient = staking;
-        impliedVolRate = 5500;
+        impliedVolRate = 4500;
         contractCreationTimestamp = block.timestamp;
     }
 
@@ -110,6 +112,11 @@ contract HegicETHOptions is Ownable, IHegicOptions {
             amount,
             strike,
             optionType
+        );
+
+        require(
+            optionType == OptionType.Call || optionType == OptionType.Put,
+            "Wrong option type"
         );
         require(period >= 1 days, "Period is too short");
         require(period <= 4 weeks, "Period is too long");
@@ -178,6 +185,46 @@ contract HegicETHOptions is Ownable, IHegicOptions {
         for (uint256 i = 0; i < arrayLength; i++) {
             unlock(optionIDs[i]);
         }
+    }
+
+    function migrate(uint count) external onlyOwner {
+        require(migrationProcess, "Migration Process was ended");
+        require(
+            pool.owner() != address(this),
+            "Liquidity Pool already attached"
+        );
+        require(address(oldHegicETHOptions) != address(0));
+        for (uint i = 0; i < count; i++){
+            uint optionID = options.length;
+            HegicETHOptions.Option memory option;
+            (
+                option.state,
+                option.holder,
+                option.strike,
+                option.amount,
+                option.lockedAmount,
+                option.premium,
+                option.expiration,
+                option.optionType
+            ) = oldHegicETHOptions.options(optionID);
+            uint settlementFee = getSettlementFee(option.amount);
+            options.push(option);
+            emit Create(
+                optionID,
+                option.holder,
+                settlementFee,
+                option.premium.add(settlementFee)
+            );
+        }
+    }
+
+    function setOldHegicETHOptions(address oldAddr) external onlyOwner {
+        require(address(oldHegicETHOptions) == address(0));
+        oldHegicETHOptions = HegicETHOptions(oldAddr);
+    }
+
+    function stopMigrationProcess() external onlyOwner {
+        migrationProcess = false;
     }
 
     /**

@@ -35,19 +35,22 @@ contract HegicRewards is Ownable {
     uint internal constant REWARD_RATE_ACCURACY = 1e8;
     uint internal immutable MAX_REWARDS_RATE;
     uint internal immutable MIN_REWARDS_RATE;
+    uint internal immutable FIRST_OPTION_ID;
     uint public rewardsRate;
 
     constructor(
         IHegicOptions _hegicOptions,
         IERC20 _hegic,
         uint maxRewardsRate,
-        uint minRewardsRate
+        uint minRewardsRate,
+        uint firstOptionID
     ) public {
         hegicOptions = _hegicOptions;
         hegic = _hegic;
         MAX_REWARDS_RATE = maxRewardsRate;
         MIN_REWARDS_RATE = minRewardsRate;
         rewardsRate = maxRewardsRate;
+        FIRST_OPTION_ID = firstOptionID;
     }
 
     function getReward(uint optionId) external {
@@ -57,6 +60,7 @@ contract HegicRewards is Ownable {
 
         (IHegicOptions.State state, address holder, , , , , , ) =
             hegicOptions.options(optionId);
+        require(optionId >= FIRST_OPTION_ID, "Wrong Option ID");
         require(state != IHegicOptions.State.Inactive, "The option is inactive");
         require(!rewardedOptions[optionId], "The option was rewarded");
         require(
