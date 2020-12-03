@@ -30,7 +30,7 @@ const params = {
 }
 
 module.exports = async function (deployer, network, [account]) {
-    if (["development", "develop", 'soliditycoverage'].indexOf(network) >= 0) {
+    if (["ropsten", "development", "develop", 'soliditycoverage'].indexOf(network) >= 0) {
       const w = await deployer.deploy(WBTC)
       const h = await deployer.deploy(HEGIC)
       await deployer.deploy(ETHPool)
